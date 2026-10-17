@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: techcompass-api
+    runtime: python
+    plan: starter
+    region: singapore
+    buildCommand: pip install -r requirements-api.txt
+    startCommand: uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health/ready
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4
+      - key: FALKORDB_HOST
+        sync: false
+      - key: FALKORDB_PORT
+        sync: false
+      - key: FALKORDB_USERNAME
+        sync: false
+      - key: FALKORDB_PASSWORD
+        sync: false
+      - key: FALKORDB_GRAPH
+        value: techcompass
+      - key: FALKORDB_TLS
+        value: "true"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TECHCOMPASS_ACCESS_PASSWORD
+        sync: false
+      - key: TECHCOMPASS_AUTH_SECRET
+        sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false

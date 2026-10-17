@@ -1,0 +1,5 @@
+fastapi
+falkordb
+python-dotenv
+groq
+uvicorn[standard]

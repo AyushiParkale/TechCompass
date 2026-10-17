@@ -1,0 +1,6 @@
+falkordb
+python-dotenv
+groq
+fastapi
+tree-sitter-language-pack
+uvicorn[standard]

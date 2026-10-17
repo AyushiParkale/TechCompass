@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Ask evidence-grounded questions about the AnythingLLM project."
+    />
+    <title>TechCompass</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/config.js"></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="TechCompass home">
+          <span class="brand-mark" aria-hidden="true">T</span>
+          <span>TechCompass</span>
+        </a>
+        <span class="topbar-note">Repository intelligence</span>
+        <button id="logout-button" class="text-button hidden" type="button">
+          Sign out
+        </button>
+      </header>
+
+      <section id="login-view" class="login-panel" aria-labelledby="login-title">
+        <div class="eyebrow">Private workspace</div>
+        <h1 id="login-title">Welcome to TechCompass</h1>
+        <p>Enter your workspace password to start an evidence-grounded chat.</p>
+        <form id="login-form">
+          <label for="password-input">Workspace password</label>
+          <div class="password-row">
+            <input
+              id="password-input"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              maxlength="256"
+              autofocus
+            />
+            <button class="primary-button" type="submit">Continue</button>
+          </div>
+          <p id="login-error" class="error-message" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="chat-view" class="chat-view hidden" aria-label="Chat">
+        <div class="intro">
+          <div class="eyebrow">AnythingLLM knowledge graph</div>
+          <h1>What would you like to explore?</h1>
+          <p>
+            Ask about architecture, components, dependencies, or documented
+            capabilities. Answers include the graph tools used.
+          </p>
+        </div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="chat-form" class="composer">
+          <label class="visually-hidden" for="question-input">
+            Your question
+          </label>
+          <textarea
+            id="question-input"
+            name="question"
+            rows="2"
+            minlength="3"
+            maxlength="1500"
+            placeholder="Ask a question about AnythingLLM..."
+            required
+          ></textarea>
+          <div class="composer-footer">
+            <span>Graph-backed answers can still have gaps; check the evidence.</span>
+            <button id="send-button" class="primary-button" type="submit">
+              Send
+            </button>
+          </div>
+        </form>
+      </section>
+      <footer>TechCompass · Evidence first, recommendations second.</footer>
+    </main>
+  </body>
+</html>
