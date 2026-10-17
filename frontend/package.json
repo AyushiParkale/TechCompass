@@ -1,8 +1,148 @@
 {
-  "name": "techcompass-chat",
-  "private": true,
-  "version": "1.0.0",
-  "scripts": {
-    "build": "node build.mjs"
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "app": {
+    "name": "TechCompass",
+    "description": "Project-aware technology signal intelligence dashboard",
+    "projectName": "AnythingLLM",
+    "repositoryUrl": "https://github.com/Mintplex-Labs/anything-llm",
+    "defaultBranch": "master"
+  },
+  "frontend": {
+    "apiBaseUrl": "http://localhost:8000",
+    "credentials": "omit",
+    "requestTimeoutMs": 15000,
+    "demoMode": true,
+    "markDemoRecords": true
+  },
+  "integration": {
+    "backendFramework": "FastAPI (planned/current frontend expectation)",
+    "health": {
+      "method": "GET",
+      "path": "/health/ready"
+    },
+    "graph": {
+      "summary": "/api/graph/summary",
+      "project": "/api/graph/project",
+      "architecture": "/api/graph/architecture",
+      "dependencies": "/api/graph/dependencies",
+      "packageUsage": "/api/graph/package-usage",
+      "packageImpact": "/api/graph/package-impact"
+    },
+    "signals": {
+      "list": "/api/signals",
+      "detail": "/api/signals/{signal_id}",
+      "refresh": "/api/scanner/run",
+      "status": "/api/scanner/status",
+      "save": "/api/signals/{signal_id}/save",
+      "dismiss": "/api/signals/{signal_id}/dismiss"
+    },
+    "opportunities": {
+      "list": "/api/opportunities"
+    },
+    "plans": {
+      "list": "/api/plans",
+      "create": "/api/plans",
+      "update": "/api/plans/{plan_id}"
+    },
+    "monitoring": {
+      "getSettings": "/api/monitoring/settings",
+      "updateSettings": "/api/monitoring/settings"
+    }
+  },
+  "integrationNotes": [
+    "Only /health/ready and the graph paths are mentioned by the current HTML as expected/known paths; verify their actual implementation and response schemas.",
+    "Signals, scanner, opportunities, plans, and monitoring endpoints are proposed contracts, not confirmed existing backend routes.",
+    "Never put Groq keys, FalkorDB credentials, or other secrets in browser code.",
+    "Keep demo fixtures labelled until data comes from a verified backend response.",
+    "Use JSON responses and consistent error objects; enable CORS only for the frontend origin."
+  ],
+  "signalRecordExample": {
+    "id": "sig-101",
+    "title": "Example signal title",
+    "publisher": "Publisher name",
+    "sourceType": "Research",
+    "date": "2026-10-15",
+    "discoveredAt": "2026-10-15T10:00:00Z",
+    "score": 75,
+    "impact": 2,
+    "tags": [
+      "RAG",
+      "Evaluation"
+    ],
+    "component": "Retrieval pipeline",
+    "status": "new",
+    "summary": "Short summary",
+    "longSummary": "Full analysis",
+    "relevance": "Why it may matter",
+    "reason": "Evidence for classification",
+    "confidence": "medium",
+    "sourceUrl": "https://example.org/source",
+    "evidence": [
+      {
+        "title": "Evidence item",
+        "detail": "Source-backed evidence",
+        "sourceRef": "optional-source-id"
+      }
+    ],
+    "opportunity": {
+      "title": "Potential opportunity",
+      "description": "Potential improvement"
+    },
+    "planSteps": [
+      "Verify source",
+      "Map components",
+      "Test proposal"
+    ],
+    "isDemo": true
+  },
+  "planRecordExample": {
+    "id": "plan-201",
+    "title": "Example implementation plan",
+    "priority": "High",
+    "areas": "Retrieval pipeline, evaluation",
+    "status": "Proposed",
+    "progress": 0,
+    "updatedAt": "2026-10-15T10:00:00Z",
+    "tasks": [
+      "Verify source evidence",
+      "Inspect related components"
+    ],
+    "sourceSignalIds": [
+      "sig-101"
+    ]
+  },
+  "graphNodeExample": {
+    "id": "retrieval",
+    "label": "Retrieval",
+    "type": "component",
+    "description": "Repository-backed component description",
+    "sourceRef": "path-or-document-reference",
+    "isDemo": false
+  },
+  "allowedValues": {
+    "signalStatus": [
+      "new",
+      "reviewed",
+      "dismissed"
+    ],
+    "planStatus": [
+      "Proposed",
+      "Under Review",
+      "Approved",
+      "In Progress",
+      "Completed"
+    ],
+    "sourceType": [
+      "Official release",
+      "Engineering blog",
+      "Research",
+      "Security advisory"
+    ],
+    "graphNodeType": [
+      "component",
+      "package",
+      "document",
+      "concept"
+    ]
   }
 }
