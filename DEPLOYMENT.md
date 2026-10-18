@@ -4,6 +4,12 @@ TechCompass uses a static chat UI on Vercel, a persistent FastAPI service on
 Render, and the managed FalkorDB Cloud instance. The browser talks only to the
 API; FalkorDB and Groq credentials stay on the Render service.
 
+**The application has no authentication.** Every graph and agent endpoint is
+public on the internet when deployed this way. Anyone can query your graph,
+consume Groq quota, trigger external-source syncs, and submit article URLs.
+Only deploy behind an access-controlled private network or trusted gateway.
+If that boundary is not available, do not deploy this configuration publicly.
+
 ## Before deploying
 
 1. **Enable TLS on the FalkorDB Cloud instance.** Render is configured with
@@ -23,25 +29,11 @@ API; FalkorDB and Groq credentials stay on the Render service.
    - `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_USERNAME`,
      `FALKORDB_PASSWORD`: values from the cloud instance dashboard.
    - `GROQ_API_KEY`: the active Groq key.
-   - `TECHCOMPASS_ACCESS_PASSWORD`: a strong password for the private chat.
-   - `TECHCOMPASS_AUTH_SECRET`: a separate random secret, at least 32
-     characters.
    - `FRONTEND_ORIGINS`: the exact production Vercel origin, for example
      `https://your-project.vercel.app` (no trailing slash).
 3. Keep `FALKORDB_GRAPH=techcompass` and `FALKORDB_TLS=true`.
 4. Wait for the Render service to deploy and verify
    `https://<render-service>/health/ready` returns status `ready`.
-
-Generate an auth signing secret in PowerShell without saving it into the
-repository:
-
-```powershell
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-Run it separately for `TECHCOMPASS_ACCESS_PASSWORD` and
-`TECHCOMPASS_AUTH_SECRET`; store the results in a password manager and enter
-them directly in Render.
 
 ## Deploy the UI on Vercel
 
@@ -56,21 +48,18 @@ them directly in Render.
    Render service if needed. Redeploy the Vercel project after changing its
    environment variable.
 
-The UI keeps its signed access token in page memory only. Refreshing the page
-requires signing in again. The API limits failed login attempts and requires a
-valid signed token for graph and agent routes. Health endpoints remain public
-for the hosting provider's health checks.
+The UI and API require no login. CORS only restricts browser-origin requests;
+it does not prevent direct API access and is not a security boundary.
 
 ## Verify the deployed chat
 
-1. Open the Vercel URL and sign in with `TECHCOMPASS_ACCESS_PASSWORD`.
-2. Ask a question such as “What agent-related capabilities are documented?”
-3. Confirm an answer appears and expand **Evidence tools used** to inspect the
+1. Open the Vercel URL and ask a question such as “What agent-related
+   capabilities are documented?”
+2. Confirm an answer appears and expand **Evidence tools used** to inspect the
    graph tools called.
-4. Confirm an unauthenticated request to the API's `/api/agent/ask` returns
-   `401`, and `/health/ready` returns `ready`.
+3. Confirm `/health/ready` returns `ready`.
 
 The Render service is configured on a paid always-on plan to avoid sleeping
 during chat use. FalkorDB remains a separate managed service. Do not place
-database credentials, the Groq key, or the shared password in Vercel
-environment variables or frontend source.
+database credentials or the Groq key in Vercel environment variables or
+frontend source.

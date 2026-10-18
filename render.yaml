@@ -24,9 +24,5 @@ services:
         value: "true"
       - key: GROQ_API_KEY
         sync: false
-      - key: TECHCOMPASS_ACCESS_PASSWORD
-        sync: false
-      - key: TECHCOMPASS_AUTH_SECRET
-        sync: false
       - key: FRONTEND_ORIGINS
         sync: false

@@ -46,6 +46,7 @@ def main():
             "lockfile": lockfile,
             "component_path": component_path,
             "resolved": entry.get("resolved"),
+            "dependencies": entry.get("dependencies", []),
         })
 
     # Remove duplicate selector mappings without collapsing distinct versions.
@@ -58,8 +59,12 @@ def main():
     }
     rows = list(unique.values())
 
+    dependency_rows, unresolved_dependencies = build_dependency_rows(rows)
+
     print(f"Input entries: {len(entries)}")
     print(f"Mapped lockfile entries: {len(rows)}")
+    print(f"Resolved package-version dependencies: {len(dependency_rows)}")
+    print(f"Unresolved package-version dependencies: {unresolved_dependencies}")
     print(f"Skipped: {dict(skipped)}")
 
     _, graph, node_count = connect_graph()
@@ -138,6 +143,30 @@ def main():
             f"/{len(rows)} selector mappings"
         )
 
+    dependency_query = """
+        UNWIND $rows AS row
+        MATCH (source:PackageVersion {
+            name: row.source_name,
+            ecosystem: 'npm',
+            version: row.source_version
+        })
+        MATCH (target:PackageVersion {
+            name: row.target_name,
+            ecosystem: 'npm',
+            version: row.target_version
+        })
+        MERGE (source)-[r:DEPENDS_ON_VERSION {
+            lockfile_path: row.lockfile,
+            dependency_selector: row.dependency_selector
+        }]->(target)
+        SET r.optional = row.optional
+    """
+    for start in range(0, len(dependency_rows), BATCH_SIZE):
+        graph.query(
+            dependency_query,
+            {"rows": dependency_rows[start:start + BATCH_SIZE]},
+        )
+
     print("\nIngestion complete. Verifying graph counts...")
 
     checks = {
@@ -153,6 +182,11 @@ def main():
             MATCH (:Package)-[r:HAS_VERSION]->(:PackageVersion)
             RETURN count(r) AS n
         """,
+        "Package-version dependency edges": """
+            MATCH (:PackageVersion)-[r:DEPENDS_ON_VERSION]->
+                  (:PackageVersion)
+            RETURN count(r) AS n
+        """,
     }
 
     for label, query in checks.items():
@@ -160,6 +194,44 @@ def main():
         print(f"{label}: {result.result_set[0][0]}")
 
     print("Existing DEPENDS_ON relationships were not modified.")
+
+
+def build_dependency_rows(rows):
+    versions_by_selector = {
+        (row["lockfile"], row["selector"]): row
+        for row in rows
+    }
+    dependency_rows = []
+    unresolved = 0
+
+    for row in rows:
+        for dependency in row["dependencies"]:
+            target = versions_by_selector.get(
+                (row["lockfile"], dependency["selector"])
+            )
+            if target is None:
+                unresolved += 1
+                continue
+            dependency_rows.append({
+                "source_name": row["name"],
+                "source_version": row["version"],
+                "target_name": target["name"],
+                "target_version": target["version"],
+                "lockfile": row["lockfile"],
+                "dependency_selector": dependency["selector"],
+                "optional": dependency["optional"],
+            })
+
+    unique_dependencies = {
+        (
+            row["source_name"], row["source_version"],
+            row["target_name"], row["target_version"],
+            row["lockfile"], row["dependency_selector"],
+        ): row
+        for row in dependency_rows
+    }
+    return list(unique_dependencies.values()), unresolved
+
 
 if __name__ == "__main__":
     main()

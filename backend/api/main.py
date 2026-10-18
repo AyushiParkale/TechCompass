@@ -5,24 +5,27 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from falkordb import FalkorDB
 from pydantic import BaseModel, Field
 
 from backend.agent.graph_agent import run_graph_agent
-from backend.api.auth import (
-    TOKEN_LIFETIME_SECONDS,
-    check_login_password,
-    issue_access_token,
-    require_access_token,
-)
 from backend.graph.graph_connection import is_local_host
+from backend.graph.external_knowledge import (
+    ExternalSourceError,
+    external_evidence_for_packages,
+    ingest_article_url,
+    preview_external_knowledge,
+    search_external_knowledge,
+    sync_external_knowledge,
+)
 from backend.graph.query_service import (
     find_package_usage,
     get_component_dependencies,
     search_architecture_knowledge,
     search_project,
+    trace_component_dependencies,
     trace_package_impact,
 )
 
@@ -124,7 +127,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -132,25 +135,26 @@ class AgentQuestion(BaseModel):
     question: str = Field(min_length=3, max_length=1500)
 
 
-class LoginRequest(BaseModel):
-    password: str = Field(min_length=1, max_length=256)
+class ArticleSubmission(BaseModel):
+    url: str = Field(min_length=1, max_length=2000)
 
 
-@app.post("/api/auth/login")
-def login(request: LoginRequest, http_request: Request):
-    client_ip = (
-        http_request.client.host
-        if http_request.client is not None
-        else "unknown"
+class GoogleNewsOptions(BaseModel):
+    query: str = Field(default="", max_length=250)
+    language: str = Field(
+        default="en-US",
+        pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z]{2})?$",
     )
-    if not check_login_password(request.password, client_ip):
-        raise HTTPException(status_code=401, detail="Incorrect password")
+    country: str = Field(default="US", pattern=r"^[A-Za-z]{2}$")
 
-    return {
-        "access_token": issue_access_token(),
-        "token_type": "bearer",
-        "expires_in": TOKEN_LIFETIME_SECONDS,
-    }
+
+class KnowledgePreviewRequest(BaseModel):
+    size: str = Field(default="small", pattern=r"^(small|medium)$")
+    google_news: GoogleNewsOptions = Field(default_factory=GoogleNewsOptions)
+
+
+class KnowledgeSyncRequest(BaseModel):
+    google_news: GoogleNewsOptions = Field(default_factory=GoogleNewsOptions)
 
 
 @app.get("/health/live")
@@ -184,7 +188,7 @@ def readiness():
 
 
 @app.get("/api/graph/summary")
-def graph_summary(_: None = Depends(require_access_token)):
+def graph_summary():
     if graph is None:
         raise HTTPException(
             status_code=503,
@@ -196,10 +200,17 @@ def graph_summary(_: None = Depends(require_access_token)):
         "Project",
         "RepoComponent",
         "Package",
+        "PackageVersion",
         "SourceFile",
         "Symbol",
         "Document",
         "DocSection",
+        "Evidence",
+        "Technology",
+        "Approach",
+        "Constraint",
+        "ExternalItem",
+        "ExternalReference",
     ]
 
     try:
@@ -224,7 +235,7 @@ def graph_summary(_: None = Depends(require_access_token)):
 
 
 @app.get("/api/graph/project")
-def project_overview(_: None = Depends(require_access_token)):
+def project_overview():
     if graph is None:
         raise HTTPException(
             status_code=503,
@@ -244,7 +255,6 @@ def project_overview(_: None = Depends(require_access_token)):
 @app.get("/api/graph/dependencies")
 def component_dependencies(
     component: str = Query(min_length=1, max_length=100),
-    _: None = Depends(require_access_token),
 ):
     if graph is None:
         raise HTTPException(
@@ -268,7 +278,6 @@ def component_dependencies(
 @app.get("/api/graph/package-usage")
 def package_usage(
     package: str = Query(min_length=1, max_length=200),
-    _: None = Depends(require_access_token),
 ):
     if graph is None:
         raise HTTPException(
@@ -292,7 +301,6 @@ def package_usage(
 @app.get("/api/graph/architecture")
 def architecture_search(
     q: str = Query(min_length=1, max_length=200),
-    _: None = Depends(require_access_token),
 ):
     if graph is None:
         raise HTTPException(
@@ -316,7 +324,6 @@ def architecture_search(
 @app.get("/api/graph/package-impact")
 def package_impact(
     package: str = Query(min_length=1, max_length=200),
-    _: None = Depends(require_access_token),
 ):
     if graph is None:
         raise HTTPException(
@@ -337,10 +344,155 @@ def package_impact(
         )
 
 
+@app.get("/api/graph/component-impact")
+def component_impact(
+    component: str = Query(min_length=1, max_length=100),
+    depth: int = Query(default=1, ge=1, le=4),
+):
+    if graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Graph database is not connected",
+        )
+
+    try:
+        return trace_component_dependencies(graph, component, depth)
+    except Exception:
+        logger.exception("Component impact query failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to trace component dependencies",
+        )
+
+
+@app.get("/api/graph/visualization")
+def graph_visualization(
+    component: str = Query(min_length=1, max_length=100),
+    depth: int = Query(default=4, ge=1, le=4),
+):
+    if graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Graph database is not connected",
+        )
+
+    try:
+        trace = trace_component_dependencies(graph, component, depth)
+        package_versions: dict[str, set[str]] = {}
+        for path in trace.get("paths", []):
+            for name, version in zip(
+                path.get("dependency_path", [])[1:],
+                path.get("versions", []),
+            ):
+                if name and version:
+                    package_versions.setdefault(name, set()).add(version)
+        return {
+            "trace": trace,
+            "external_evidence": external_evidence_for_packages(
+                graph,
+                package_versions,
+            ),
+        }
+    except Exception:
+        logger.exception("Graph visualization query failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to load graph visualization",
+        )
+
+
+@app.get("/api/knowledge/search")
+def external_knowledge_search(
+    q: str = Query(min_length=2, max_length=200),
+):
+    if graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Graph database is not connected",
+        )
+
+    try:
+        return {
+            "query": q,
+            "results": search_external_knowledge(graph, q),
+        }
+    except Exception:
+        logger.exception("External knowledge search failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to search external knowledge",
+        )
+
+
+@app.post("/api/knowledge/sync")
+def sync_knowledge(request: KnowledgeSyncRequest | None = Body(default=None)):
+    if graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Graph database is not connected",
+        )
+
+    try:
+        return sync_external_knowledge(
+            graph,
+            google_news=(request.google_news.model_dump() if request else None),
+        )
+    except Exception:
+        logger.exception("External knowledge sync failed")
+        raise HTTPException(
+            status_code=502,
+            detail="External knowledge sync failed. Check server logs.",
+        )
+
+
+@app.post("/api/knowledge/preview")
+def preview_knowledge(request: KnowledgePreviewRequest | None = Body(default=None)):
+    if graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Graph database is not connected",
+        )
+
+    try:
+        return preview_external_knowledge(
+            graph,
+            google_news=(
+                request.google_news.model_dump() if request else None
+            ),
+            size=request.size if request else "small",
+        )
+    except Exception:
+        logger.exception("External knowledge preview failed")
+        raise HTTPException(
+            status_code=502,
+            detail="External knowledge preview failed. Check server logs.",
+        )
+
+@app.post("/api/knowledge/articles")
+def submit_article(
+    request: ArticleSubmission,
+):
+    if graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Graph database is not connected",
+        )
+
+    try:
+        return ingest_article_url(graph, request.url)
+    except ExternalSourceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("Article ingestion failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Article ingestion failed. Check server logs.",
+        )
+
+
 @app.post("/api/agent/ask")
 def ask_agent(
     request: AgentQuestion,
-    _: None = Depends(require_access_token),
 ):
     if graph is None:
         raise HTTPException(

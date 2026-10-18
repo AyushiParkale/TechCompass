@@ -20,42 +20,111 @@
           <span>TechCompass</span>
         </a>
         <span class="topbar-note">Repository intelligence</span>
-        <button id="logout-button" class="text-button hidden" type="button">
-          Sign out
-        </button>
       </header>
 
-      <section id="login-view" class="login-panel" aria-labelledby="login-title">
-        <div class="eyebrow">Private workspace</div>
-        <h1 id="login-title">Welcome to TechCompass</h1>
-        <p>Enter your workspace password to start an evidence-grounded chat.</p>
-        <form id="login-form">
-          <label for="password-input">Workspace password</label>
-          <div class="password-row">
-            <input
-              id="password-input"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              required
-              maxlength="256"
-              autofocus
-            />
-            <button class="primary-button" type="submit">Continue</button>
-          </div>
-          <p id="login-error" class="error-message" role="alert"></p>
-        </form>
-      </section>
-
-      <section id="chat-view" class="chat-view hidden" aria-label="Chat">
+      <section id="chat-view" class="chat-view" aria-label="Chat">
         <div class="intro">
           <div class="eyebrow">AnythingLLM knowledge graph</div>
           <h1>What would you like to explore?</h1>
           <p>
-            Ask about architecture, components, dependencies, or documented
-            capabilities. Answers include the graph tools used.
+            Ask about architecture, components, and dependencies, or request
+            current tech news selected from this project's graph context.
+            Answers show the graph and source tools used.
           </p>
         </div>
+        <section class="knowledge-panel" aria-label="Knowledge graph explorer">
+          <div class="panel-heading">
+            <div>
+              <div class="eyebrow">Dependency explorer</div>
+              <h2>Explore the graph</h2>
+            </div>
+            <div class="source-actions">
+              <form id="preview-form">
+                <button id="preview-button" class="secondary-button" type="submit">
+                  Test connectors (read-only)
+                </button>
+              </form>
+              <form id="sync-form">
+                <button id="sync-button" class="secondary-button" type="submit">
+                  Sync external sources
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="news-controls" aria-label="Google News connector settings">
+            <label for="google-news-query">Google News search</label>
+            <input id="google-news-query" maxlength="250"
+                   value=""
+                   placeholder='e.g. "Hugging Face" OR open source AI' />
+            <label for="google-news-language">Language</label>
+            <select id="google-news-language">
+              <option value="en-US" selected>English (US)</option>
+              <option value="en-GB">English (UK)</option>
+              <option value="hi-IN">Hindi (India)</option>
+            </select>
+            <label for="google-news-country">Region</label>
+            <select id="google-news-country">
+              <option value="US" selected>United States</option>
+              <option value="IN">India</option>
+              <option value="GB">United Kingdom</option>
+              <option value="CA">Canada</option>
+            </select>
+            <label for="preview-size">Preview</label>
+            <select id="preview-size">
+              <option value="small" selected>Small</option>
+              <option value="medium">Medium</option>
+            </select>
+          </div>
+          <form id="graph-form" class="graph-controls">
+            <label for="component-input">Component</label>
+            <input
+              id="component-input"
+              name="component"
+              value="anything-llm-server"
+              maxlength="100"
+              required
+            />
+            <label for="depth-input">Depth</label>
+            <select id="depth-input" name="depth">
+              <option value="1">1 hop</option>
+              <option value="2">2 hops</option>
+              <option value="3">3 hops</option>
+              <option value="4" selected>4 hops</option>
+            </select>
+            <button id="graph-button" class="primary-button" type="submit">
+              Explore
+            </button>
+          </form>
+          <p id="graph-status" class="panel-status" role="status"></p>
+          <div id="connector-results" class="connector-results"></div>
+          <div id="graph-canvas" class="graph-canvas" role="img"
+               aria-label="Dependency path graph">
+            <p class="empty-state">Explore a component to draw its dependency paths.</p>
+          </div>
+          <div id="external-evidence" class="external-evidence"></div>
+          <div class="source-tools">
+            <form id="article-form" class="source-form">
+              <label for="article-url">Add a public article or advisory URL</label>
+              <div class="inline-form">
+                <input id="article-url" name="url" type="url"
+                       placeholder="https://example.com/article" required />
+                <button id="article-button" class="secondary-button" type="submit">
+                  Add URL
+                </button>
+              </div>
+            </form>
+            <form id="search-form" class="source-form">
+              <label for="knowledge-query">Search ingested external knowledge</label>
+              <div class="inline-form">
+                <input id="knowledge-query" name="query" maxlength="200"
+                       placeholder="e.g. langchain vulnerability" required />
+                <button class="secondary-button" type="submit">Search</button>
+              </div>
+            </form>
+            <p id="source-status" class="panel-status" role="status"></p>
+            <div id="search-results" class="external-evidence"></div>
+          </div>
+        </section>
         <div id="messages" class="messages" aria-live="polite"></div>
         <form id="chat-form" class="composer">
           <label class="visually-hidden" for="question-input">
@@ -67,7 +136,7 @@
             rows="2"
             minlength="3"
             maxlength="1500"
-            placeholder="Ask a question about AnythingLLM..."
+            placeholder="Ask about AnythingLLM or current tech news relevant to it..."
             required
           ></textarea>
           <div class="composer-footer">
