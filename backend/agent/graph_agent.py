@@ -17,6 +17,7 @@ from backend.graph.external_knowledge import (
     ExternalSourceError,
     fetch_external_source_tool,
     get_external_project_context,
+    rank_external_impact_candidates,
     record_external_impact_assessment,
     search_external_knowledge,
 )
@@ -65,7 +66,7 @@ TOOL_ARGUMENT_LIMITS = {
     },
     "record_external_impact_assessment": {
         "item_id": 64, "capability_id": 120, "relevance": 20,
-        "confidence": 10, "rationale": 700, "potential_impact": 900,
+        "rationale": 700, "potential_impact": 900,
         "next_step": 400,
     },
     "search_signals": {
@@ -611,12 +612,11 @@ TOOLS.extend([
             "item_id": {"type": "string", "description": "Exact 64-character ID returned for a search result."},
             "capability_id": {"type": "string", "description": "Exact capability ID from the graph context."},
             "relevance": {"type": "string", "enum": ["direct", "adjacent", "hypothesis"]},
-            "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
             "rationale": {"type": "string", "description": "Why this dated external change connects to this capability, based on cited project evidence."},
-            "potential_impact": {"type": "string", "description": "Potential improvement or risk; label uncertain benefits as hypotheses."},
+            "potential_impact": {"type": "string", "description": "Explanation of the possible improvement or risk. Express uncertainty with wording such as may or could; do not include a heading or internal relevance labels."},
             "next_step": {"type": "string", "description": "A concrete validation or adoption step."},
         },
-        ["item_id", "capability_id", "relevance", "confidence", "rationale", "potential_impact", "next_step"],
+        ["item_id", "capability_id", "relevance", "rationale", "potential_impact", "next_step"],
     ),
 ])
 
@@ -1227,8 +1227,7 @@ def _external_discovery_context(graph: Any) -> dict[str, Any]:
                 "item_url": item.get("item_url"),
                 "assessed_at": item.get("assessed_at"),
                 "relevance": item.get("relevance"),
-                "confidence": item.get("confidence"),
-                "rationale": str(item.get("rationale") or "")[:180],
+                "rationale": str(item.get("rationale") or ""),
             }
             for item in context.get("prior_assessments", [])[:5]
         ],
@@ -1238,6 +1237,136 @@ def _external_discovery_context(graph: Any) -> dict[str, Any]:
             "provider/package-only searches unless the graph supports it."
         ),
     }
+
+
+def _tool_traversal_paths(tool_name: str, result: Any) -> list[dict[str, Any]]:
+    """Extract concrete node routes returned by graph-backed tools."""
+    paths: list[dict[str, Any]] = []
+
+    def add(nodes: Any, title: str, *, candidate: bool = False) -> None:
+        if not isinstance(nodes, list):
+            return
+        names = []
+        for node in nodes:
+            if isinstance(node, str):
+                name = node
+            elif isinstance(node, dict):
+                name = node.get("name") or node.get("title") or node.get("path")
+            else:
+                name = None
+            if name:
+                names.append(str(name))
+        if len(names) > 1:
+            paths.append({
+                "title": title[:180],
+                "nodes": names[:12],
+                "hops": min(len(names) - 1, 11),
+                "candidate": candidate,
+            })
+
+    if not isinstance(result, (dict, list)):
+        return paths
+    if tool_name == "trace_component_dependencies" and isinstance(result, dict):
+        for path in result.get("paths", [])[:12]:
+            add(path.get("dependency_path"), path.get("direct_package") or "Dependency path")
+    elif tool_name in {"search_project", "get_component_dependencies", "find_package_usage", "search_architecture_knowledge"}:
+        for row in result[:12]:
+            if not isinstance(row, dict):
+                continue
+            if tool_name == "search_project":
+                nodes = [row.get("project"), row.get("component")]
+            elif tool_name == "get_component_dependencies":
+                nodes = [row.get("component"), row.get("package")]
+            elif tool_name == "find_package_usage":
+                nodes = ([row.get("component")] if row.get("component") else [])
+                nodes.extend([row.get("source_file"), row.get("package")])
+            else:
+                evidence_name = " · ".join(
+                    str(value) for value in (row.get("document"), row.get("section")) if value
+                )
+                nodes = [row.get("concept"), f"Evidence: {evidence_name}" if evidence_name else None]
+            add([node for node in nodes if node], tool_name.replace("_", " "))
+    elif tool_name in {"trace_package_impact", "trace_impact"} and isinstance(result, dict):
+        impact = result.get("graph_impact", result)
+        if isinstance(impact, dict):
+            for row in impact.get("declared_dependencies", [])[:8]:
+                add([row.get("component"), row.get("package")], "Declared dependency")
+            for row in impact.get("direct_imports", [])[:8]:
+                nodes = ([row.get("component")] if row.get("component") else [])
+                nodes.extend([row.get("source_file"), row.get("package")])
+                add(nodes, "Direct package import")
+        resolved = result.get("resolved_versions", [])
+        if isinstance(resolved, list):
+            for row in resolved[:8]:
+                add([row.get("component"), row.get("package"), row.get("resolved_version")], "Resolved lockfile version")
+    elif tool_name == "record_external_impact_assessment" and isinstance(result, dict):
+        add(result.get("path"), "Saved impact assessment")
+    elif isinstance(result, dict):
+        for traversal in result.get("traversals", [])[:12]:
+            for nodes in traversal.get("paths", [])[:4]:
+                add(nodes, traversal.get("source_title") or traversal.get("capability") or "Graph path", candidate=True)
+    return paths[:12]
+
+
+def _append_graph_traversal_receipt(
+    answer: str, tool_trace: list[dict[str, Any]],
+) -> str:
+    """Make graph routes (or their absence) visible in every agent answer."""
+    lines = ["", "", "### Graph traversal receipt", ""]
+    paths = []
+    seen = set()
+    graph_calls = []
+    for item in tool_trace:
+        if not item.get("ok"):
+            continue
+        if item.get("traversal_paths") or item.get("traversals") or item.get("tool") in {
+            "search_project", "get_component_dependencies", "find_package_usage",
+            "search_architecture_knowledge", "search_external_knowledge",
+            "trace_component_dependencies",
+            "trace_package_impact", "trace_impact", "get_external_project_context",
+            "rank_graph_impact_candidates", "objective_impact_analysis",
+            "record_external_impact_assessment",
+        }:
+            graph_calls.append(item.get("tool", "Graph query"))
+        for route in item.get("traversal_paths", []):
+            key = tuple(route.get("nodes", []))
+            if key and key not in seen:
+                seen.add(key)
+                paths.append(route)
+        for traversal in item.get("traversals", []):
+            for nodes in traversal.get("paths", []):
+                names = [
+                    node if isinstance(node, str) else
+                    node.get("name") or node.get("title")
+                    for node in nodes
+                ]
+                names = [str(name) for name in names if name]
+                key = tuple(names)
+                if len(names) > 1 and key not in seen:
+                    seen.add(key)
+                    paths.append({
+                        "title": traversal.get("source_title") or traversal.get("capability") or "Graph candidate",
+                        "nodes": names,
+                        "hops": len(names) - 1,
+                        "candidate": True,
+                    })
+    if paths:
+        for index, path in enumerate(paths[:12], 1):
+            qualifier = "candidate path" if path.get("candidate") else "returned path"
+            lines.append(
+                f"{index}. **{path.get('title') or 'Graph path'}** — "
+                f"{path.get('hops', len(path.get('nodes', [])) - 1)} hop(s): "
+                + " → ".join(path.get("nodes", []))
+                + f" ({qualifier})."
+            )
+    elif graph_calls:
+        lines.append(
+            "Graph queries ran (" + ", ".join(dict.fromkeys(graph_calls[:8]))
+            + "), but they returned no explicit node-to-node route for this answer."
+        )
+    else:
+        lines.append("No graph traversal was run for this answer.")
+    return answer.rstrip() + "\n" + "\n".join(lines)
 
 
 def _compact_tool_result(tool_name: str, result: Any) -> Any:
@@ -1258,7 +1387,7 @@ def _compact_tool_result(tool_name: str, result: Any) -> Any:
             "records": [
                 {
                     key: (
-                        str(item.get(key) or "")[:120]
+                        str(item.get(key) or "")
                         if key == "summary" else
                         str(item.get(key) or "")[:200]
                         if key == "retrieval_query" else item.get(key)
@@ -1377,7 +1506,7 @@ def _compact_tool_result(tool_name: str, result: Any) -> Any:
                 for key in (
                     "assessment_id", "capability_id", "capability",
                     "item_title", "item_url", "assessed_at", "relevance",
-                    "confidence", "rationale",
+                    "rationale",
                 )
                 if item.get(key)
             }
@@ -1554,7 +1683,7 @@ def _evidence_fallback_summary(
             title = str(record.get("title") or "Untitled result")[:180]
             url = str(record.get("url") or "")
             published = str(record.get("published_at") or "date unavailable")[:40]
-            summary = str(record.get("summary") or "").strip()[:220]
+            summary = _usable_source_summary(record.get("summary") or "")
             lines.append(f"{index}. **[{title}]({url})** — published {published}.")
             if summary:
                 lines.append(f"   {summary}")
@@ -1724,10 +1853,29 @@ def _append_unreported_search_results(
         url = str(record.get("url") or "").strip()
         published = str(record.get("published_at") or "date unavailable")[:40]
         lines.append(f"- **[{title}]({url})** — published {published}.")
-        summary = str(record.get("summary") or "").strip()
+        summary = _usable_source_summary(record.get("summary") or "")
         if summary:
-            lines.append(f"  {summary[:260]}")
+            lines.append(f"  {summary}")
     return "\n".join(lines)
+
+
+_SOURCE_PAGE_BOILERPLATE = re.compile(
+    r"\b(?:ABOUT US|INSIGHT FORUM|SPONSORED CONTENT|TERMS OF USE|"
+    r"PRIVACY POLICY|CONTACT US|NEWS PARTNER|FEATURED:|SITEMAPS?:|"
+    r"COPYRIGHT ©|ALL RIGHTS RESERVED)\b",
+    re.I,
+)
+
+
+def _usable_source_summary(value: str) -> str:
+    """Avoid presenting obvious site navigation as an article summary."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    boilerplate = list(_SOURCE_PAGE_BOILERPLATE.finditer(text))
+    if len(boilerplate) >= 2:
+        text = text[:boilerplate[0].start()].strip()
+    if not text or len(_SOURCE_PAGE_BOILERPLATE.findall(text)) >= 2:
+        return "The source page did not provide a clean summary; open the source link for its details."
+    return text
 
 
 def _gemini_is_temporarily_unavailable(error: Exception) -> bool:
@@ -1817,6 +1965,7 @@ def _external_discovery_fallback(
         ),
     )
     answer = _append_unreported_search_results(answer, evidence)
+    answer = _append_graph_traversal_receipt(answer, trace)
     return {
         "answer": answer,
         "tools_used": trace,
@@ -2008,7 +2157,7 @@ def _analyze_discovery_segments(
             "title": item.get("title"),
             "url": url,
             "published_at": item.get("published_at"),
-            "summary": str(item.get("summary") or "")[:450],
+            "summary": str(item.get("summary") or ""),
             "search_query": item.get("retrieval_query"),
         }
     globally_assigned_ids = set()
@@ -2065,10 +2214,15 @@ def _analyze_discovery_segments(
         "while leaving them for the application to show as search results. Never invent code paths or claim "
         "AnythingLLM already adopted a technology. Return JSON only: "
         "{areas:[{area_id,summary,assessments:[{url,capability_id,relevance, "
-        "confidence,rationale,potential_impact,next_step}]}]}. Relevance must "
-        "be direct, adjacent, or hypothesis; confidence must be high, medium, "
-        "or low. Use exact URLs and capability IDs supplied in that area's "
-        "data. Keep it concise, at most one strongest assessment per area."
+        "rationale,potential_impact,next_step}]}]}. Relevance is internal "
+        "assessment metadata for storage only; never include its value in "
+        "user-facing text. "
+        "The potential_impact value must contain only the impact explanation, "
+        "not a heading or category prefix. The application adds the exact "
+        "heading 'Potential impact:' itself. Express uncertainty naturally "
+        "with words such as 'may' or 'could', not with internal labels. Use "
+        "exact URLs and capability IDs supplied in that area's data. Keep it "
+        "concise, at most one strongest assessment per area."
     )
     response = llm_client.chat.completions.create(
         model=model,
@@ -2107,29 +2261,25 @@ def _analyze_discovery_segments(
             url = str(assessment.get("url") or "").strip()
             capability_id = str(assessment.get("capability_id") or "").strip()
             relevance = assessment.get("relevance")
-            confidence = assessment.get("confidence")
             if url not in allowed["urls"] or capability_id not in allowed["capability_ids"]:
                 continue
             if relevance not in {"direct", "adjacent", "hypothesis"}:
                 continue
-            if confidence not in {"high", "medium", "low"}:
-                continue
-            rationale = str(assessment.get("rationale") or "").strip()[:700]
-            potential_impact = str(assessment.get("potential_impact") or "").strip()[:900]
-            next_step = str(assessment.get("next_step") or "").strip()[:400]
+            rationale = str(assessment.get("rationale") or "").strip()
+            potential_impact = str(assessment.get("potential_impact") or "").strip()
+            next_step = str(assessment.get("next_step") or "").strip()
             if not rationale or not potential_impact or not next_step:
                 continue
             assessments.append({
                 "url": url,
                 "capability_id": capability_id,
                 "relevance": relevance,
-                "confidence": confidence,
                 "rationale": rationale,
                 "potential_impact": potential_impact,
                 "next_step": next_step,
             })
         results[area_id] = {
-            "summary": str(area_result.get("summary") or "").strip()[:500],
+            "summary": str(area_result.get("summary") or "").strip(),
             "assessments": assessments[:1],
         }
     return results
@@ -2138,85 +2288,109 @@ def _analyze_discovery_segments(
 def _graph_only_impact_leads(
     work: list[tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]],
     records: list[dict[str, Any]],
+    graph_candidates: dict[str, list[dict[str, Any]]],
 ) -> dict[int, dict[str, Any]]:
-    """Create cautious, low-confidence leads from exact graph-term overlap if Gemini is unavailable."""
-    stop_words = {
-        # Broad product/architecture vocabulary creates misleading matches
-        # (for example, "agentic workflow" -> meeting-agent capability).
-        # Fallback links should be driven by a concrete technology or feature,
-        # not by generic terms that appear across unrelated software stories.
-        "about", "agent", "agents", "agentic", "and", "api", "application",
-        "architecture", "based", "build", "capture", "data", "feature",
-        "followup", "follow-up", "follow", "for", "from", "integration", "into", "launch",
-        "local", "meeting", "model", "models", "new", "open", "platform",
-        "project", "release", "runtime", "service", "source", "support",
-        "system", "technology", "that", "the", "this", "tool", "tools",
-        "workflow", "workflows", "with",
+    """Turn strong Cypher-ranked traversals into explicit, cautious impacts."""
+    record_by_url = {
+        str(item.get("url") or ""): item for item in records if item.get("url")
     }
-
-    def terms(value: Any) -> set[str]:
-        result = set()
-        for token in re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]*", str(value or "").casefold()):
-            token = token.strip(".-")
-            if len(token) >= 4 or token in {"mcp", "rag"}:
-                normalized = token[:-1] if len(token) > 5 and token.endswith("s") else token
-                if normalized not in stop_words:
-                    result.add(normalized)
-        return result
-
     result: dict[int, dict[str, Any]] = {}
     for area_id, (segment, capabilities, _segment_records) in enumerate(work):
-        best_by_url: dict[str, tuple[int, dict[str, Any], dict[str, Any], list[str]]] = {}
-        for record in records[:30]:
-            url = str(record.get("url") or "").strip()
-            if not url:
-                continue
-            evidence_terms = terms(" ".join([
-                str(record.get("title") or ""),
-                str(record.get("summary") or ""),
-            ]))
-            best = None
-            for capability in capabilities:
-                key_terms = terms(" ".join([
-                    str(capability.get("name") or ""),
-                    " ".join(capability.get("architecture_patterns", [])),
-                    " ".join(capability.get("technologies", [])),
-                ]))
-                matched = sorted(evidence_terms & key_terms)
-                if not matched:
-                    continue
-                score = len(matched) + (2 if terms(capability.get("name")) & evidence_terms else 0)
-                if best is None or score > best[0]:
-                    best = (score, capability, matched)
-            if best and (url not in best_by_url or best[0] > best_by_url[url][0]):
-                best_by_url[url] = (best[0], record, best[1], best[2])
-
-        fallback_assessments = []
+        allowed_ids = {str(item.get("id") or "") for item in capabilities}
         area_name = str(segment.get("objective") or segment.get("capability") or "project capability")
-        for _score, record, capability, matched_terms in sorted(
-            best_by_url.values(), key=lambda item: item[0], reverse=True
-        )[:1]:
-            cap_name = str(capability.get("name") or "project capability")
-            fallback_assessments.append({
-                "url": str(record.get("url") or ""),
-                "capability_id": str(capability.get("id") or ""),
-                "relevance": "hypothesis",
-                "confidence": "low",
-                "rationale": (
-                    "Gemini was unavailable. This low-confidence lead is based only on exact shared terms "
-                    f"({', '.join(matched_terms[:5])}) between the dated source and FalkorDB capability "
-                    f"'{cap_name}' under objective '{area_name}'."
-                )[:700],
+        candidates = []
+        for url, options in graph_candidates.items():
+            record = record_by_url.get(url)
+            if not record:
+                continue
+            for candidate in options:
+                if (
+                    candidate.get("capability_id") not in allowed_ids
+                    or int(candidate.get("score", 0)) < 5
+                    or int(candidate.get("anchor_score", 0)) < 4
+                ):
+                    continue
+                objectives = candidate.get("objectives", [])
+                if objectives and area_name not in objectives:
+                    continue
+                candidates.append((candidate, record))
+        candidates.sort(key=lambda pair: int(pair[0].get("score", 0)), reverse=True)
+        assessments = []
+        seen_urls = set()
+        for candidate, record in candidates:
+            url = str(record.get("url") or "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            matches = candidate.get("matches", [])
+            match_text = ", ".join(dict.fromkeys(
+                f"{item.get('term')} ({item.get('matched_in')})"
+                for item in matches if item.get("term")
+            ))
+            objective = next(
+                (value for value in candidate.get("objectives", []) if value == area_name),
+                next(iter(candidate.get("objectives", [])), area_name),
+            )
+            capability = str(candidate.get("capability") or "project capability")
+            description = str(candidate.get("description") or capability).strip()
+            source_summary = _usable_source_summary(
+                record.get("summary") or record.get("title") or "The source describes a new external technology.",
+            )
+            paths = [str(value) for value in candidate.get("implementation_paths", []) if value]
+            components = [
+                str(item.get("name")) for item in candidate.get("components", [])
+                if item.get("name")
+            ]
+            evidence = candidate.get("evidence", [])
+            proof_parts = []
+            if components:
+                proof_parts.append("components " + ", ".join(components[:2]))
+            if paths:
+                proof_parts.append("code paths " + ", ".join(paths[:2]))
+            if evidence:
+                evidence_label = " / ".join(
+                    str(value) for value in (evidence[0].get("title"), evidence[0].get("section"))
+                    if value
+                )
+                if evidence_label:
+                    proof_parts.append("documentation " + evidence_label)
+            graph_proof = "; linked to ".join(proof_parts) if proof_parts else "no code or document implementation link is modeled"
+            query_paths = candidate.get("graph_paths", [])
+            graph_query_path = max(query_paths, key=len) if query_paths else []
+            query_path_names = [
+                str(node.get("name") or node.get("title") or "")
+                for node in graph_query_path if isinstance(node, dict)
+            ]
+            query_path_names = [
+                name for name in query_path_names
+                if name and not re.fullmatch(r"[0-9a-f]{40,}", name)
+            ]
+            assessments.append({
+                "url": url,
+                "capability_id": str(candidate.get("capability_id") or ""),
+                "relevance": "adjacent" if candidate.get("objectives") and (paths or evidence or components) else "hypothesis",
+                "rationale": " ".join([
+                    f"A read-only FalkorDB Cypher traversal followed Project → ProjectCapability and the linked objective/evidence/code relationships. "
+                    f"It scored {candidate.get('score', 0)} weighted matches: {match_text or 'none'}. "
+                    f"The capability is connected to objective '{objective}' and {graph_proof}. "
+                    f"Traversed path: {' → '.join(query_path_names)}." if query_path_names else "",
+                    "This is a candidate relationship based on graph text and links, not proof of technical compatibility.",
+                ]),
                 "potential_impact": (
-                    f"The external item may be worth evaluating for '{cap_name}'. The graph describes this capability as "
-                    f"'{str(capability.get('description') or cap_name)[:240]}'. Compare the external feature's actual "
-                    "interfaces and availability with the linked implementation before deciding whether it could improve this area."
-                )[:900],
-                "next_step": "Verify the feature on its primary source, then prototype against the graph-linked code paths.",
+                    f"The external source describes: {source_summary} Current graph context says '{capability}' supports '{objective}'"
+                    f" ({description}). Its implementation is linked to {graph_proof}. If the external feature provides the behavior described by the source, "
+                    f"it may offer a way to improve this specific objective or implementation area; validate the API, deployment constraints, and quality impact before adopting it."
+                ),
+                "next_step": (
+                    "Compare the vendor's documented interfaces and availability with the linked project evidence, then prototype against the listed code paths and measure the objective-level outcome."
+                ),
+                "graph_query_path": graph_query_path,
             })
+            if len(assessments) >= 3:
+                break
         result[area_id] = {
-            "summary": "Gemini was unavailable; these are low-confidence graph-term leads, not model-verified impact conclusions.",
-            "assessments": fallback_assessments,
+            "summary": "Graph candidate mapping used weighted Cypher traversal over objectives, capabilities, architecture, documentation, and implementation links. Rule-based mappings are investigation leads, not compatibility claims.",
+            "assessments": assessments,
         }
     return result
 
@@ -2295,6 +2469,7 @@ def _run_external_discovery_report(
             f"{diagnostics.get('capabilities_with_code_paths', 0)} with code paths.",
             f"Search error: `{safe_detail}`",
         ])
+        answer = _append_graph_traversal_receipt(answer, trace)
         return {
             "answer": answer,
             "tools_used": trace,
@@ -2394,6 +2569,50 @@ def _run_external_discovery_report(
         if segment_records or records:
             work.append((segment, graph_slice, segment_records[:4]))
 
+    report_progress(
+        "impact", "running",
+        "Running read-only Cypher traversals from each external record into AnythingLLM objectives, capabilities, and implementation evidence.",
+    )
+    try:
+        graph_candidates = rank_external_impact_candidates(graph, records)
+        graph_candidate_error = None
+    except Exception as exc:
+        logger.warning(
+            "Cypher graph impact ranking failed (%s): %s",
+            type(exc).__name__, str(exc)[:240],
+        )
+        graph_candidates = {}
+        graph_candidate_error = type(exc).__name__
+    cypher_candidate_count = sum(len(items) for items in graph_candidates.values())
+    cypher_matched_record_count = len(graph_candidates)
+    trace.append({
+        "tool": "rank_graph_impact_candidates",
+        "ok": graph_candidate_error is None,
+        "arguments": {
+            "records": min(len(records), 40),
+            "algorithm": "weighted parameterized Cypher traversal across project objectives, capabilities, architecture, evidence, source files, and components",
+        },
+        "result_count": cypher_candidate_count,
+        "matched_record_count": cypher_matched_record_count,
+        # Preserve a small, UI-friendly sample of the node paths returned by
+        # the Cypher traversal so the report can show hops instead of only a
+        # prose explanation. These are candidate links, not persisted edges.
+        "traversals": [
+            {
+                "source_title": str(record.get("title") or record.get("url") or "External finding")[:180],
+                "source_url": str(url),
+                "capability": str(candidate.get("capability") or "Capability"),
+                "score": candidate.get("score", 0),
+                "paths": candidate.get("graph_paths", [])[:4],
+            }
+            for url, candidates in graph_candidates.items()
+            for candidate in candidates[:2]
+            for record in records
+            if str(record.get("url") or "") == str(url)
+        ][:12],
+        **({"error": graph_candidate_error} if graph_candidate_error else {}),
+    })
+
     analyzed: dict[int, dict[str, Any]] = {}
     failures: dict[int, str] = {}
     gemini_completed = False
@@ -2421,11 +2640,26 @@ def _run_external_discovery_report(
                 type(exc).__name__, str(exc)[:240],
             )
             failures = {index: type(exc).__name__ for index in range(len(work))}
-            analyzed = _graph_only_impact_leads(work, records)
+            analyzed = _graph_only_impact_leads(work, records, graph_candidates)
             report_progress(
                 "impact", "running",
-                "Gemini did not finish; building cautious, low-confidence leads from exact graph term matches.",
+                "Gemini did not finish; Cypher found and ranked concrete graph paths for supported findings.",
             )
+
+    # Graph matching is also a recall backstop when Gemini completes but omits
+    # items. Only candidates with a real graph traversal and a minimum weighted
+    # score are added; unmatched records remain search evidence without a forced link.
+    cypher_fill = _graph_only_impact_leads(work, records, graph_candidates) if work else {}
+    for index, fallback in cypher_fill.items():
+        current = analyzed.setdefault(index, {"summary": "", "assessments": []})
+        existing_urls = {str(item.get("url") or "") for item in current.get("assessments", [])}
+        additions = [
+            item for item in fallback.get("assessments", [])
+            if item.get("url") and item["url"] not in existing_urls
+        ]
+        if additions and not current.get("summary"):
+            current["summary"] = "Graph traversal added candidate impacts that the model did not assess; the mappings remain hypotheses pending compatibility checks."
+        current.setdefault("assessments", []).extend(additions[:max(0, 3 - len(existing_urls))])
 
     record_by_url = {str(item.get("url") or ""): item for item in records}
     capability_by_id = {str(item.get("id") or ""): item for item in architecture}
@@ -2434,13 +2668,14 @@ def _run_external_discovery_report(
         "",
         f"Lookback: **{search.get('date_window', {}).get('from', '')} to {search.get('date_window', {}).get('through', '')}** ({days} days).",
         f"Graph context from FalkorDB: **{context_diagnostics.get('objective_count', 0)} objectives**, **{context_diagnostics.get('capability_count', 0)} capabilities**, **{context_diagnostics.get('capabilities_with_code_paths', 0)} with implementation paths**.",
+        f"Cypher impact traversal: **{cypher_candidate_count} candidate path(s)** across **{cypher_matched_record_count} source record(s)**.",
         "",
         "Impact statements below are hypotheses about how an external capability could affect the current implementation. They are linked to graph capabilities and source/code evidence; they do not claim the external technology is already adopted.",
     ]
     if failures:
         output_lines.extend([
             "",
-            "**Gemini analysis status:** unavailable for this run. The marked fallback leads use exact terms from the search records and graph capability nodes; they are low-confidence and are not Gemini-verified.",
+            "**Gemini analysis status:** unavailable for this run. The report uses the read-only Cypher ranking as a fallback, following objective-to-capability relationships and checking linked architecture, documentation, components, and code paths. These graph-scored mappings are investigation leads, not compatibility claims.",
         ])
     assessments_saved = []
     work_by_segment_id = {id(entry[0]): index for index, entry in enumerate(work)}
@@ -2473,7 +2708,6 @@ def _run_external_discovery_report(
                     item_id=item_id,
                     capability_id=assessment["capability_id"],
                     relevance=assessment["relevance"],
-                    confidence=assessment["confidence"],
                     rationale=assessment["rationale"],
                     potential_impact=assessment["potential_impact"],
                     next_step=assessment["next_step"],
@@ -2502,20 +2736,33 @@ def _run_external_discovery_report(
             output_lines.extend(["", f"#### [{title}]({url})", "", f"**Published:** {published}.", ""])
             summary = str(record.get("summary") or "").strip()
             if summary:
-                output_lines.extend([f"**What’s new:** {summary[:360]}", ""])
+                output_lines.extend([f"**What’s new:** {_usable_source_summary(summary)}", ""])
             assessment = assessments_by_url.get(url)
             if not assessment:
-                output_lines.append(
-                    "**Impact:** No specific project capability connection was established from the graph evidence. "
-                    "This source remains a search result, not a project-impact finding."
-                )
+                nearest = graph_candidates.get(url, [])
+                if nearest:
+                    closest = nearest[0]
+                    linked_objectives = closest.get("objectives", [])
+                    output_lines.append(
+                        f"**Graph match:** Cypher found a candidate path to **{closest.get('capability', 'unknown')}** "
+                        f"under {', '.join(linked_objectives) or 'another modeled area'}, but it does not connect to this report area ({area}). "
+                        "The finding is mapped only under its matching objective to avoid duplicate or misleading impact claims."
+                    )
+                else:
+                    output_lines.append(
+                        "**Graph match:** The Cypher traversal found no distinctive term overlap with this objective’s connected capabilities, "
+                        "architecture, evidence, or implementation paths. It remains a search lead; no project-impact claim was generated."
+                    )
                 continue
             capability = capability_by_id.get(assessment["capability_id"], {})
             output_lines.append(
-                f"**Potential impact · {assessment['relevance']} · {assessment['confidence']} confidence:** {assessment['potential_impact']}"
+                f"**Potential impact:** {assessment['potential_impact']}"
             )
             output_lines.extend(["", f"**Why it maps:** {assessment['rationale']}", "", f"**Next step:** {assessment['next_step']}", ""])
-            graph_path = assessment.get("saved", {}).get("path", [])
+            graph_path = (
+                assessment.get("saved", {}).get("path")
+                or assessment.get("graph_query_path", [])
+            )
             path_names = [
                 str(node.get("name") or node.get("title") or "")
                 for node in graph_path if isinstance(node, dict)
@@ -2550,6 +2797,31 @@ def _run_external_discovery_report(
             "arguments": {"objective": area},
             "result_count": len(analysis.get("assessments", [])) if analysis else 0,
             "graph_assessments_saved": sum(bool(item.get("saved")) for item in analysis.get("assessments", [])) if analysis else 0,
+            "cypher_candidate_assessments": len(cypher_fill.get(index, {}).get("assessments", [])),
+            "traversal_paths": [
+                {
+                        "title": str(
+                            record_by_url.get(str(item.get("url") or ""), {}).get("title")
+                            or item.get("url") or "Impact assessment"
+                        )[:180],
+                    "nodes": [
+                        str(node.get("name") or node.get("title") or "")
+                        for node in (
+                            item.get("saved", {}).get("path")
+                            or item.get("graph_query_path", [])
+                        )
+                        if isinstance(node, dict)
+                        and (node.get("name") or node.get("title"))
+                    ][:12],
+                    "hops": max(0, len(
+                        item.get("saved", {}).get("path")
+                        or item.get("graph_query_path", [])
+                    ) - 1),
+                    "candidate": not bool(item.get("saved")),
+                }
+                for item in (analysis.get("assessments", []) if analysis else [])
+                if len(item.get("saved", {}).get("path") or item.get("graph_query_path", [])) > 1
+            ][:8],
             **({"fallback": "graph_term_match"} if index in failures else {}),
             **({"error": failures[index]} if index in failures else {}),
         })
@@ -2558,7 +2830,7 @@ def _run_external_discovery_report(
         "impact", "complete",
         (f"Analyzed {len(work)} objective areas in one Gemini call and saved {len(assessments_saved)} graph-grounded impact finding(s)."
          if not failures else
-         f"Gemini was unavailable; generated {len(assessments_saved)} low-confidence graph-matched lead(s) across {len(work)} areas."),
+         f"Gemini was unavailable; generated {len(assessments_saved)} graph-matched investigation lead(s) across {len(work)} areas."),
     )
     output_lines.extend([
         "",
@@ -2568,6 +2840,7 @@ def _run_external_discovery_report(
         "Launch dates are not inferred from publication dates. Each impact is a reasoned, graph-linked hypothesis and must be validated before implementation.",
     ])
     answer = _append_unreported_search_results("\n".join(output_lines), evidence)
+    answer = _append_graph_traversal_receipt(answer, trace)
     report_progress("report", "complete", "Objective-by-objective graph impact report is ready.")
     return {
         "answer": answer,
@@ -2630,6 +2903,10 @@ def run_graph_agent(
                 "Call only needed tools and do not repeat calls. Cite returned "
                 "document titles, sections, and URLs; never invent evidence. "
                 "State uncertainty and distinguish facts from recommendations. "
+                "Relevance is internal metadata only; never show its value "
+                "in user-facing answers. "
+                "When presenting an impact explanation, label it only "
+                "Potential impact and state the explanation directly. "
                 "For dependency questions distinguish manifests, direct imports, "
                 "and resolved lockfile versions. An absent graph result does not "
                 "prove absence in the repository. For security, an advisory alone "
@@ -2709,7 +2986,7 @@ def run_graph_agent(
                 "capability, documentation link, or saved assessment is missing. "
                 "Report the external facts and source links; label the project "
                 "impact as a hypothesis when graph support is absent. A graph "
-                "evidence count of zero limits impact confidence only and must "
+                "evidence count of zero limits graph support only and must "
                 "not be described as a lack of search data.\n\n"
                 "Render external-update reports in two levels: first a compact "
                 "coverage summary grouped by the graph's project objectives or "
@@ -2844,11 +3121,13 @@ def run_graph_agent(
                     continue
                 if retrieved_evidence:
                     break
+                answer = (
+                    "I couldn’t produce an answer this time, and no "
+                    "evidence was retrieved. Please retry the query."
+                )
+                answer = _append_graph_traversal_receipt(answer, tool_trace)
                 return {
-                    "answer": (
-                        "I couldn’t produce an answer this time, and no "
-                        "evidence was retrieved. Please retry the query."
-                    ),
+                    "answer": answer,
                     "tools_used": tool_trace,
                     "model": model,
                 }
@@ -2918,7 +3197,7 @@ def run_graph_agent(
                 response.choices[0].finish_reason,
             )
             result = {
-                "answer": answer,
+                "answer": _append_graph_traversal_receipt(answer, tool_trace),
                 "tools_used": tool_trace,
                 "model": model,
             }
@@ -3024,6 +3303,7 @@ def run_graph_agent(
                         ),
                         "truncated": result_truncated,
                         "result_count": result_count,
+                        "traversal_paths": _tool_traversal_paths(tool_name, result),
                     }
                     if evidence_preview is not None:
                         tool_content["evidence_preview"] = evidence_preview
@@ -3117,6 +3397,8 @@ def run_graph_agent(
                 }
 
             trace_item["result_count"] = tool_content.get("result_count")
+            if tool_content.get("traversal_paths"):
+                trace_item["traversal_paths"] = tool_content["traversal_paths"]
             if "evidence_preview" in tool_content:
                 trace_item["evidence_preview"] = tool_content[
                     "evidence_preview"
@@ -3190,6 +3472,11 @@ def run_graph_agent(
                 "information. Answer the user's question using only the "
                 "provided tool evidence. Cite source fields when available, "
                 "distinguish evidence from inference, and state limitations. "
+                "Relevance is internal metadata: never show its value or "
+                "label in user-facing text. When "
+                "presenting an impact explanation, use only the heading "
+                "'Potential impact:' followed by the explanation; express "
+                "uncertainty in ordinary wording such as may or could. "
                 "Answer every requested section explicitly, including any "
                 "requested recommendation or implementation plan. For "
                 "factual architecture claims, cite only retrieved evidence "
@@ -3368,7 +3655,7 @@ def run_graph_agent(
     if requires_external_discovery:
         answer = _append_unreported_search_results(answer, retrieved_evidence)
     result = {
-        "answer": answer,
+        "answer": _append_graph_traversal_receipt(answer, tool_trace),
         "tools_used": tool_trace,
         "model": model,
     }

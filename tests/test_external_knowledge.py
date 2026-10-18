@@ -21,10 +21,49 @@ from backend.graph.external_knowledge import (
     _upsert_items,
     _validate_public_https_url,
     external_evidence_for_packages,
+    record_external_impact_assessment,
 )
 
 
 class ExternalKnowledgeTests(unittest.TestCase):
+    def test_impact_assessment_persistence_drops_confidence_metadata(self):
+        class Result:
+            result_set = [[
+                "assessment-id",
+                "2026-10-18T00:00:00+00:00",
+                [],
+                [],
+                "Retrieval",
+                "Retrieval capability",
+                [],
+                [],
+            ]]
+
+        class Graph:
+            query_text = ""
+            query_params = {}
+
+            def query(self, query, params):
+                self.query_text = query
+                self.query_params = params
+                return Result()
+
+        graph = Graph()
+        result = record_external_impact_assessment(
+            graph,
+            item_id="a" * 64,
+            capability_id="retrieval",
+            relevance="hypothesis",
+            rationale="The source describes a related capability.",
+            potential_impact="It may improve retrieval.",
+            next_step="Compare the documented interfaces.",
+        )
+
+        self.assertNotIn("confidence", result)
+        self.assertNotIn("confidence", graph.query_params)
+        self.assertNotIn("SET assessment.confidence", graph.query_text)
+        self.assertIn("REMOVE assessment.confidence", graph.query_text)
+
     @patch("backend.graph.external_knowledge._upsert_items")
     @patch("backend.graph.external_knowledge._fetch_google_news")
     def test_live_source_tool_stores_results_and_returns_source_links(

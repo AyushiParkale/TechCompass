@@ -15,7 +15,7 @@ if (parsedApiUrl.protocol !== "https:" && !isLocalDevelopmentApi) {
 }
 
 mkdirSync("dist", { recursive: true });
-for (const file of ["index.html", "app.js", "styles.css"]) {
+for (const file of ["index.html", "app.js", "styles.css", "favicon.svg"]) {
   copyFileSync(file, `dist/${file}`);
 }
 writeFileSync(

@@ -7,7 +7,8 @@
       name="description"
       content="Run a graph-backed technology update check for AnythingLLM and review its impact report."
     />
-    <title>TechCompass · Project Update Report</title>
+    <title>Stay Ahead with TechCompass</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/config.js"></script>
     <script src="/app.js" defer></script>
@@ -22,36 +23,76 @@
             <small>Project intelligence</small>
           </span>
         </a>
-        <div class="project-badge">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span>Project</span>
-          <strong>AnythingLLM</strong>
+        <div class="topbar-right">
+          <span class="live-badge"><span class="status-dot" aria-hidden="true"></span>Live graph intelligence</span>
+          <div class="project-badge">
+            <span>Analyzing</span>
+            <strong>AnythingLLM</strong>
+          </div>
         </div>
       </header>
 
       <main class="page-main">
         <section class="hero" aria-labelledby="page-title">
-          <p class="eyebrow">Graph-backed technology watch</p>
-          <h1 id="page-title">What changed that could matter to AnythingLLM?</h1>
-          <p class="hero-copy">
-            Run a focused update check across AnythingLLM’s goals and architecture.
-            Get dated external findings, project-specific impact, and the evidence paths behind each connection.
-          </p>
+          <div class="hero-copy-block">
+            <p class="eyebrow"><span class="eyebrow-line"></span>Connected intelligence for your stack</p>
+            <h1 id="page-title">Stay Ahead<br /><span>with TechCompass.</span></h1>
+            <p class="hero-copy">
+              TechCompass follows AnythingLLM’s goals, architecture, and evidence through FalkorDB—then searches the outside world for changes that connect.
+            </p>
+            <div class="hero-proof-points">
+              <span><b>01</b> Graph-guided discovery</span>
+              <span><b>02</b> Source-backed impact</span>
+              <span><b>03</b> Explainable paths</span>
+            </div>
+          </div>
+          <div class="hero-visual" aria-label="Graph connections flow into a project impact report" role="img">
+            <div class="visual-glow"></div>
+            <svg class="graph-art" viewBox="0 0 470 310" fill="none" aria-hidden="true">
+              <path class="graph-edge graph-edge-muted" d="M96 84 187 143 267 65M187 143l-77 91m77-91 106 86m-106-86 164 16M110 234l58 21m-58-21-32 38m32-38 5-82m198-1 23-79m-23 79 58 37m-58-37-5 78m169-78 35-55m-35 55 27 79m-27-79 55-12" />
+              <path class="graph-edge graph-edge-bright" d="M96 84 187 143l106 86m-106-86 164 16" />
+              <circle class="graph-node node-project" cx="187" cy="143" r="18" />
+              <circle class="graph-node node-objective" cx="96" cy="84" r="10" />
+              <circle class="graph-node node-objective" cx="293" cy="229" r="10" />
+              <circle class="graph-node node-objective" cx="357" cy="159" r="10" />
+              <circle class="graph-node node-capability" cx="267" cy="65" r="8" />
+              <circle class="graph-node node-capability" cx="110" cy="234" r="8" />
+              <circle class="graph-node node-capability" cx="316" cy="196" r="8" />
+              <circle class="graph-node node-capability" cx="398" cy="104" r="8" />
+              <circle class="graph-node node-evidence" cx="78" cy="272" r="6" />
+              <circle class="graph-node node-evidence" cx="168" cy="255" r="6" />
+              <circle class="graph-node node-evidence" cx="294" cy="151" r="6" />
+              <circle class="graph-node node-evidence" cx="345" cy="233" r="6" />
+              <circle class="graph-node node-evidence" cx="432" cy="92" r="6" />
+              <text x="187" y="147" text-anchor="middle">PROJECT</text>
+              <text class="graph-label" x="49" y="62">GOALS</text>
+            </svg>
+            <div class="visual-caption"><span class="caption-pulse"></span> One connected project graph <span class="caption-divider"></span> Many paths to impact</div>
+          </div>
         </section>
 
         <section class="run-card" aria-label="Update check controls">
-          <div class="window-control">
-            <label for="lookback-days">Look back</label>
-            <div class="number-field">
-              <input id="lookback-days" name="days" type="number" value="30" min="1" max="90" step="1" inputmode="numeric" />
-              <span>days</span>
+          <div class="run-card-intro">
+            <span class="run-card-icon" aria-hidden="true">↗</span>
+            <div>
+              <strong>Run an architecture-wide scan</strong>
+              <p>Search recent external developments and map them to the project graph.</p>
             </div>
-            <p>Choose 1–90 days (up to about 3 months).</p>
           </div>
-          <button id="run-button" class="button button-primary" type="button">
-            <span class="button-icon" aria-hidden="true">↻</span>
-            <span>Check for updates</span>
-          </button>
+          <div class="run-controls">
+            <label class="window-control" for="lookback-days">
+              <span>Lookback</span>
+              <span class="number-field">
+                <input id="lookback-days" name="days" type="number" value="30" min="1" max="90" step="1" inputmode="numeric" />
+                <span>days</span>
+              </span>
+            </label>
+            <button id="run-button" class="button button-primary" type="button">
+              <span class="button-icon" aria-hidden="true">↻</span>
+              <span>Generate impact report</span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
         </section>
 
         <section id="progress-panel" class="progress-panel" aria-labelledby="progress-title" hidden>
@@ -105,6 +146,34 @@
             </div>
             <span id="report-period" class="period-label"></span>
           </div>
+          <section id="graph-proof" class="graph-proof" aria-labelledby="graph-proof-title" hidden>
+            <div class="proof-header">
+              <div>
+                <p class="eyebrow">FalkorDB traversal receipt</p>
+                <h3 id="graph-proof-title">The graph is shaping this report</h3>
+                <p id="proof-summary" class="proof-summary"></p>
+              </div>
+              <span id="graph-proof-status" class="graph-live-state"><span></span>Graph connected</span>
+            </div>
+            <div id="proof-metrics" class="proof-metrics"></div>
+            <div class="proof-journey" aria-label="Graph model sequence">
+              <span class="journey-label">Graph model</span>
+              <span class="journey-node journey-project">AnythingLLM project</span><i>→</i>
+              <span class="journey-node journey-objective">Objective</span><i>→</i>
+              <span class="journey-node journey-capability">Capability</span><i>→</i>
+              <span class="journey-node journey-evidence">Docs / code evidence</span>
+            </div>
+            <div id="actual-paths" class="actual-paths" hidden>
+              <div class="actual-paths-heading"><span class="path-check">↔</span><strong>Cypher traversal paths</strong></div>
+              <p class="traversal-note">Each arrow is one graph hop. Search findings are candidate matches by graph evidence; dashed links are not stored graph relationships.</p>
+              <label class="depth-control" for="traversal-depth">Show paths up to <strong id="traversal-depth-value">6</strong> hops
+                <input id="traversal-depth" type="range" min="1" max="8" value="6" step="1">
+              </label>
+              <div id="traversal-depth-tabs" class="traversal-depth-tabs" role="group" aria-label="Filter paths by hop depth"></div>
+              <div id="actual-path-list" class="actual-path-list"></div>
+            </div>
+            <p id="no-actual-paths" class="no-actual-paths" hidden></p>
+          </section>
           <div id="report-content" class="report-content"></div>
           <details id="audit-details" class="audit-details" hidden>
             <summary>Search audit</summary>
@@ -112,7 +181,12 @@
           </details>
         </section>
 
-        <p class="page-note">Every finding is tied to dated external evidence. Graph matches explain why it may matter; they do not by themselves prove impact.</p>
+        <footer class="page-note">
+          <span class="footer-mark">T</span>
+          <span>TechCompass · Connected data, explainable impact</span>
+          <span>Every match shows its evidence. Relevance is not proof of adoption.</span>
+          <button id="back-to-top" class="back-to-top" type="button" aria-label="Back to top">Back to top ↑</button>
+        </footer>
       </main>
     </div>
   </body>

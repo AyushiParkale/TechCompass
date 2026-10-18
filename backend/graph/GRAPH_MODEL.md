@@ -115,7 +115,7 @@ stage modules can also be imported safely by maintenance tools.
 
 External search records are stored as `ExternalItem` nodes. An impact
 assessment should connect the item to a graph-resolved capability, capture the
-rationale/confidence/next step, and connect that assessment to official or
+rationale/next step, and connect that assessment to official or
 repository `Evidence`. A useful explanation path is:
 
 ```text
@@ -125,9 +125,9 @@ Project -> ProjectObjective -> ProjectCapability <- ImpactAssessment -> External
 
 The project-to-item relationship is therefore not guessed from the project
 name alone. It is explained through a matching capability and its evidence.
-When only lexical overlap or a candidate code path exists, report lower
-confidence and label it accordingly. Absence of a path means “not established
-in this graph,” not “the external item cannot matter.”
+When only lexical overlap or a candidate code path exists, describe the
+relationship cautiously in the impact explanation. Absence of a path means
+“not established in this graph,” not “the external item cannot matter.”
 
 ## Build and check
 
