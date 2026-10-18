@@ -113,7 +113,7 @@ The FastAPI backend provides readiness checks, graph and dependency queries, and
 
 For backend setup, ensure the following environment keys are populated in your `.env` file. **Never expose these keys to the frontend browser application.**
 
-env
+
 # Server Configuration
 PORT=8000
 HOST=0.0.0.0
