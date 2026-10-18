@@ -21,6 +21,12 @@ from backend.graph.query_service import (
     trace_package_impact,
 )
 
+from backend.agent.signal_tools import (
+    search_signals,
+    trace_impact,
+    verify_dependency_exposure,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
 
@@ -52,6 +58,19 @@ TOOL_ARGUMENT_LIMITS = {
     "search_hacker_news": {"query": 200},
     "search_configured_rss": {},
     "search_configured_github_releases": {},
+    "search_signals": {
+        "package": 200,
+        "ecosystem": 100,
+    },
+    "trace_impact": {
+        "package": 200,
+    },
+    "verify_dependency_exposure": {
+        "package": 200,
+        "ecosystem": 100,
+        "resolved_version": 100,
+        "advisory_id": 100,
+    },
 }
 
 TOOLS = [
@@ -201,6 +220,70 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_signals",
+            "description": (
+                "Search OSV for package vulnerability advisories. "
+                "This discovers signals but does not prove exposure."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "package": {"type": "string"},
+                    "ecosystem": {"type": "string"},
+                },
+                "required": ["package", "ecosystem"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trace_impact",
+            "description": (
+                "Find declared dependencies, direct imports, and "
+                "resolved lockfile versions in the project graph."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "package": {"type": "string"},
+                },
+                "required": ["package"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "verify_dependency_exposure",
+            "description": (
+                "Check whether OSV returns a specified advisory "
+                "for an exact resolved package version. If it does "
+                "not, report unknown rather than asserting safety."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "package": {"type": "string"},
+                    "ecosystem": {"type": "string"},
+                    "resolved_version": {"type": "string"},
+                    "advisory_id": {"type": "string"},
+                },
+                "required": [
+                    "package",
+                    "ecosystem",
+                    "resolved_version",
+                    "advisory_id",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -335,6 +418,22 @@ def _tool_handlers(graph: Any) -> dict[str, Callable[..., Any]]:
         ),
         "search_configured_github_releases": lambda: (
             fetch_external_source_tool(graph, "github_releases")
+        ),
+        "search_signals": lambda package, ecosystem: (
+            search_signals(package, ecosystem)
+        ),
+        "trace_impact": lambda package: trace_impact(
+            graph, package
+        ),
+        "verify_dependency_exposure": (
+            lambda package, ecosystem, resolved_version, advisory_id: (
+                verify_dependency_exposure(
+                    package,
+                    ecosystem,
+                    resolved_version,
+                    advisory_id,
+                )
+            )
         ),
     }
 
@@ -515,7 +614,18 @@ def run_graph_agent(graph: Any, question: str) -> dict[str, Any]:
                 "If no direct graph connection is returned, say 'No direct "
                 "project impact established' and describe any implication as "
                 "a hypothesis, not a fact. Never state that a news item affects "
-                "the project merely because it mentions a related technology."
+                "the project merely because it mentions a related technology. "
+                "For security and vulnerability questions, use search_signals "
+                "to retrieve external advisory evidence, then use trace_impact "
+                "to inspect declared dependencies, direct imports, and resolved "
+                "lockfile versions. When an advisory and resolved version are "
+                "available, use verify_dependency_exposure. Never infer an "
+                "installed version from a declared version range. An advisory "
+                "for a package does not by itself prove that the repository is "
+                "affected. Distinguish external advisory evidence from graph "
+                "evidence. If the package ecosystem, resolved version, or advisory "
+                "details are missing, state the uncertainty. Do not invent graph "
+                "paths or claim remediation has been applied. "
             ),
         },
         {"role": "user", "content": question},

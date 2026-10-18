@@ -293,3 +293,28 @@ def trace_package_impact(
         "declared_dependencies": declared_dependencies,
         "direct_imports": direct_imports,
     }
+#uses the existing graph relationships shown in verify_lockfile_versions.py script to find the package version recorded in the lockfile.
+def get_resolved_package_versions(
+    graph: Any,
+    package: str,
+) -> list[dict[str, Any]]:
+    """Return resolved lockfile versions and component evidence."""
+    return _rows(
+        graph,
+        """
+        MATCH (c:RepoComponent)-[r:HAS_LOCKFILE_RESOLUTION]->
+              (v:PackageVersion)
+        WHERE toLower(v.name) = toLower($package)
+        OPTIONAL MATCH (p:Package)-[:HAS_VERSION]->(v)
+        RETURN c.name AS component,
+               c.path AS component_path,
+               coalesce(p.name, v.name) AS package,
+               p.ecosystem AS ecosystem,
+               v.version AS resolved_version,
+               r.selector AS selector,
+               r.lockfile_path AS lockfile
+        ORDER BY c.name, resolved_version
+        LIMIT 500
+        """,
+        {"package": package},
+    )
