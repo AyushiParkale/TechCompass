@@ -1,5 +1,6 @@
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -104,7 +105,10 @@ def main():
         all_entries.extend(entries)
         print(f"{lockfile}: {len(entries)} package-selector entries")
 
-    output = Path("data/index/resolved_versions.json")
+    output = Path(os.getenv(
+        "TECHCOMPASS_LOCKFILE_INDEX",
+        "data/index/resolved_versions.json",
+    ))
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         json.dumps(all_entries, indent=2),

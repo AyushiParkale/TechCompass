@@ -1,6 +1,7 @@
 falkordb
 python-dotenv
-groq
+google-genai>=2.23,<3
+ddgs>=9.0
 fastapi
 tree-sitter-language-pack
 uvicorn[standard]

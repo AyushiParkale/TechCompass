@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.graph.ingest_lockfile_versions import build_dependency_rows
-from backend.graph.parse_yarn_lockfiles import parse_yarn_v1
+from scripts.graph.ingest_lockfile_versions import build_dependency_rows
+from scripts.graph.parse_yarn_lockfiles import parse_yarn_v1
 
 
 class YarnLockfileDependencyTests(unittest.TestCase):

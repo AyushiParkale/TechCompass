@@ -6,11 +6,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from falkordb import FalkorDB
-from graph_connection import connection_options
+from backend.graph.graph_connection import connection_options
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = ROOT / "data" / "source" / "anything-llm"
-INDEX = ROOT / "data" / "index" / "codebase.json"
+_index_path = Path(os.getenv(
+    "TECHCOMPASS_CODEBASE_INDEX",
+    "data/index/codebase.json",
+))
+INDEX = _index_path if _index_path.is_absolute() else ROOT / _index_path
 BATCH_SIZE = 250
 
 load_dotenv(ROOT / ".env")

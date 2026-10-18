@@ -198,7 +198,7 @@ def search_architecture_knowledge(
     graph: Any,
     query: str,
 ) -> list[dict[str, Any]]:
-    """Search concept names and their supporting documentation evidence."""
+    """Search documented capabilities, architecture concepts, and their evidence."""
     stop_words = {
         "the", "and", "for", "from", "what", "how", "does",
         "anythingllm", "explain", "documented", "approach",
@@ -216,8 +216,14 @@ def search_architecture_knowledge(
         graph,
         """
         MATCH (c)-[:SUPPORTED_BY]->(e:Evidence)
-        WHERE (c:Technology OR c:Approach OR c:Constraint)
-        WITH c, e, [
+        WHERE (c:Technology OR c:Approach OR c:Constraint
+               OR c:ProjectCapability OR c:ProjectObjective)
+        OPTIONAL MATCH (c)-[:USES_PATTERN]->(pattern:ArchitecturePattern)
+        WITH c, e, collect(DISTINCT pattern.name) AS patterns
+        OPTIONAL MATCH (c)-[:USES_TECHNOLOGY]->(technology:Technology)
+        WITH c, e, patterns,
+             collect(DISTINCT technology.name) AS technologies
+        WITH c, e, patterns, technologies, [
             term IN $terms
             WHERE toLower(coalesce(e.section_heading, '')) CONTAINS term
         ] AS section_terms, [
@@ -229,6 +235,9 @@ def search_architecture_knowledge(
         ] AS concept_terms, [
             term IN $terms
             WHERE toLower(coalesce(c.name, '')) CONTAINS term
+                OR toLower(coalesce(c.description, '')) CONTAINS term
+                OR any(name IN patterns WHERE toLower(name) CONTAINS term)
+                OR any(name IN technologies WHERE toLower(name) CONTAINS term)
                 OR toLower(coalesce(e.document_title, '')) CONTAINS term
                 OR toLower(coalesce(e.section_heading, '')) CONTAINS term
                 OR toLower(coalesce(e.excerpt, '')) CONTAINS term
@@ -237,7 +246,10 @@ def search_architecture_knowledge(
         WHERE size(matched_terms) > 0
         RETURN
             labels(c) AS concept_types,
-            c.name AS concept,
+            coalesce(c.name, c.text) AS concept,
+            c.description AS concept_description,
+            patterns AS architecture_patterns,
+            technologies AS technologies,
             e.document_title AS document,
             e.section_heading AS section,
             e.source_path AS source_path,

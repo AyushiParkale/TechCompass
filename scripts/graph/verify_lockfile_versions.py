@@ -6,11 +6,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.api.main import connect_graph
+from backend.graph.graph_connection import connect_graph
 
 
 def main() -> None:
-    _, graph, node_count = connect_graph()
+    db, graph = connect_graph()
+    node_result = graph.ro_query("MATCH (n) RETURN count(n)")
+    node_count = int(node_result.result_set[0][0])
     print(f"Connected to FalkorDB ({node_count} nodes).")
 
     queries = [

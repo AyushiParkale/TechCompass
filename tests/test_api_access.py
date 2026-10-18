@@ -27,33 +27,12 @@ class ApiAccessTests(unittest.TestCase):
             callback(*args, **kwargs)
         self.assertEqual(raised.exception.status_code, 503)
 
-    def test_graph_routes_are_public(self):
-        self.assert_public_route("/api/graph/project")
-        self.assert_graph_unavailable(main.project_overview)
-
-    def test_component_impact_route_is_public(self):
-        self.assert_public_route("/api/graph/component-impact")
+    def test_update_report_route_is_public_and_requires_graph(self):
+        self.assert_public_route("/api/updates/run")
         self.assert_graph_unavailable(
-            main.component_impact, component="server", depth=4
+            main.run_project_update,
+            request=main.UpdateReportRequest(days=30),
         )
-
-    def test_external_knowledge_routes_are_public(self):
-        cases = (
-            ("/api/graph/visualization", main.graph_visualization,
-             {"component": "server", "depth": 4}),
-            ("/api/knowledge/search", main.external_knowledge_search,
-             {"q": "react"}),
-            ("/api/knowledge/sync", main.sync_knowledge, {}),
-            ("/api/knowledge/preview", main.preview_knowledge, {}),
-            ("/api/knowledge/articles", main.submit_article,
-             {"request": main.ArticleSubmission(url="https://example.org/article")}),
-            ("/api/agent/ask", main.ask_agent,
-             {"request": main.AgentQuestion(question="Explain this project")}),
-        )
-        for path, endpoint, kwargs in cases:
-            with self.subTest(path=path):
-                self.assert_public_route(path)
-                self.assert_graph_unavailable(endpoint, **kwargs)
 
     def test_login_route_is_removed(self):
         paths = {

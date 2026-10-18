@@ -67,11 +67,16 @@ def connection_options():
             raise ValueError("FALKORDB_TLS must be set to true or false")
         use_tls = normalized_tls in {"1", "true", "yes"}
 
+    try:
+        socket_timeout = max(10, min(int(os.getenv("FALKORDB_SOCKET_TIMEOUT", "60")), 180))
+    except ValueError as exc:
+        raise ValueError("FALKORDB_SOCKET_TIMEOUT must be an integer between 10 and 180") from exc
+
     return {
         "username": os.getenv("FALKORDB_USERNAME", "").strip() or None,
         "ssl": use_tls,
         "ssl_cert_reqs": "required" if use_tls else None,
         "ssl_check_hostname": use_tls,
         "socket_connect_timeout": 10,
-        "socket_timeout": 30,
+        "socket_timeout": socket_timeout,
     }

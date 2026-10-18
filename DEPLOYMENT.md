@@ -1,12 +1,12 @@
 # TechCompass deployment
 
-TechCompass uses a static chat UI on Vercel, a persistent FastAPI service on
+TechCompass uses a static update-report UI on Vercel, a persistent FastAPI service on
 Render, and the managed FalkorDB Cloud instance. The browser talks only to the
-API; FalkorDB and Groq credentials stay on the Render service.
+API; FalkorDB and Gemini credentials stay on the Render service.
 
 **The application has no authentication.** Every graph and agent endpoint is
 public on the internet when deployed this way. Anyone can query your graph,
-consume Groq quota, trigger external-source syncs, and submit article URLs.
+consume Gemini quota, trigger external-source syncs, and submit article URLs.
 Only deploy behind an access-controlled private network or trusted gateway.
 If that boundary is not available, do not deploy this configuration publicly.
 
@@ -16,7 +16,7 @@ If that boundary is not available, do not deploy this configuration publicly.
    `FALKORDB_TLS=true`. Do not deploy production traffic while the cloud
    instance still has TLS disabled; otherwise the database credentials and
    graph traffic are not protected in transit.
-2. Rotate the Groq key if the previously exposed key has not already been
+2. Rotate any LLM API key if it was previously exposed and has not already been
    revoked. Put the replacement directly into Render's secret environment
    variable form, never into the frontend or a committed file.
 3. Push this project to a GitHub repository. Keep `.env` out of the repository.
@@ -28,7 +28,8 @@ If that boundary is not available, do not deploy this configuration publicly.
 2. Fill the prompted environment variables in Render:
    - `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_USERNAME`,
      `FALKORDB_PASSWORD`: values from the cloud instance dashboard.
-   - `GROQ_API_KEY`: the active Groq key.
+   - `GEMINI_API_KEY`: the active Gemini API key.
+   - `GEMINI_MODEL`: defaults to `gemini-3.8-flash` in the Render Blueprint.
    - `FRONTEND_ORIGINS`: the exact production Vercel origin, for example
      `https://your-project.vercel.app` (no trailing slash).
 3. Keep `FALKORDB_GRAPH=techcompass` and `FALKORDB_TLS=true`.
@@ -51,15 +52,15 @@ If that boundary is not available, do not deploy this configuration publicly.
 The UI and API require no login. CORS only restricts browser-origin requests;
 it does not prevent direct API access and is not a security boundary.
 
-## Verify the deployed chat
+## Verify the deployed report
 
-1. Open the Vercel URL and ask a question such as “What agent-related
-   capabilities are documented?”
-2. Confirm an answer appears and expand **Evidence tools used** to inspect the
-   graph tools called.
+1. Open the Vercel URL, set a lookback of up to 90 days, and select
+   **Check for updates**.
+2. Confirm live check statuses appear, then review the segmented report and
+   its source links and graph evidence.
 3. Confirm `/health/ready` returns `ready`.
 
 The Render service is configured on a paid always-on plan to avoid sleeping
-during chat use. FalkorDB remains a separate managed service. Do not place
-database credentials or the Groq key in Vercel environment variables or
+during report generation. FalkorDB remains a separate managed service. Do not place
+database credentials or the Gemini key in Vercel environment variables or
 frontend source.

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from graph_connection import connect_graph
+from backend.graph.graph_connection import connect_graph
 
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
@@ -22,11 +22,18 @@ def main():
         """MERGE (p:ProductProfile {id: $id})
         SET p.name = $name, p.description = $description,
             p.business_goal = $business_goal,
+            p.source_strategy = $source_strategy,
             p.source_path = 'backend/graph/project_profile.json',
             p.source_type = 'maintainer_project_brief'""",
-        {key: profile[key] for key in (
-            "id", "name", "description", "business_goal"
-        )},
+        {
+            "id": profile["id"],
+            "name": profile["name"],
+            "description": profile["description"],
+            "business_goal": profile["business_goal"],
+            "source_strategy": json.dumps(
+                profile.get("source_strategy", {}), ensure_ascii=False
+            ),
+        },
     )
     for objective in profile["objectives"]:
         graph.query(

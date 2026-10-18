@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from falkordb import FalkorDB
-from graph_connection import connection_options
+from backend.graph.graph_connection import connection_options
 
 # Project root: D:\Hackathon\TechCompass
 ROOT = Path(__file__).resolve().parents[2]

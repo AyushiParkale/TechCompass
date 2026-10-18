@@ -1,8 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "scripts": {
+    "build": "node build.mjs"
+  },
   "app": {
     "name": "TechCompass",
-    "description": "Project-aware technology signal intelligence dashboard",
+    "description": "Graph-backed AnythingLLM technology update reports",
     "projectName": "AnythingLLM",
     "repositoryUrl": "https://github.com/Mintplex-Labs/anything-llm",
     "defaultBranch": "master"
@@ -10,49 +13,25 @@
   "frontend": {
     "apiBaseUrl": "http://localhost:8000",
     "credentials": "omit",
-    "requestTimeoutMs": 15000,
+    "requestTimeoutMs": null,
     "demoMode": true,
     "markDemoRecords": true
   },
   "integration": {
-    "backendFramework": "FastAPI (planned/current frontend expectation)",
+    "backendFramework": "FastAPI",
     "health": {
       "method": "GET",
       "path": "/health/ready"
     },
-    "graph": {
-      "summary": "/api/graph/summary",
-      "project": "/api/graph/project",
-      "architecture": "/api/graph/architecture",
-      "dependencies": "/api/graph/dependencies",
-      "packageUsage": "/api/graph/package-usage",
-      "packageImpact": "/api/graph/package-impact"
-    },
-    "signals": {
-      "list": "/api/signals",
-      "detail": "/api/signals/{signal_id}",
-      "refresh": "/api/scanner/run",
-      "status": "/api/scanner/status",
-      "save": "/api/signals/{signal_id}/save",
-      "dismiss": "/api/signals/{signal_id}/dismiss"
-    },
-    "opportunities": {
-      "list": "/api/opportunities"
-    },
-    "plans": {
-      "list": "/api/plans",
-      "create": "/api/plans",
-      "update": "/api/plans/{plan_id}"
-    },
-    "monitoring": {
-      "getSettings": "/api/monitoring/settings",
-      "updateSettings": "/api/monitoring/settings"
+    "updateReport": {
+      "run": "/api/updates/run",
+      "progressProtocol": "server-sent events",
+      "maximumLookbackDays": 90
     }
   },
   "integrationNotes": [
-    "Only /health/ready and the graph paths are mentioned by the current HTML as expected/known paths; verify their actual implementation and response schemas.",
-    "Signals, scanner, opportunities, plans, and monitoring endpoints are proposed contracts, not confirmed existing backend routes.",
-    "Never put Groq keys, FalkorDB credentials, or other secrets in browser code.",
+    "The frontend runs one fixed project update job and renders streamed progress followed by a report.",
+    "Never put Gemini keys, FalkorDB credentials, or other secrets in browser code.",
     "Keep demo fixtures labelled until data comes from a verified backend response.",
     "Use JSON responses and consistent error objects; enable CORS only for the frontend origin."
   ],

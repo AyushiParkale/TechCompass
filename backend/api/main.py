@@ -1,33 +1,20 @@
-
 import logging
 import os
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from falkordb import FalkorDB
 from pydantic import BaseModel, Field
 
 from backend.agent.graph_agent import run_graph_agent
-from backend.graph.graph_connection import is_local_host
-from backend.graph.external_knowledge import (
-    ExternalSourceError,
-    external_evidence_for_packages,
-    ingest_article_url,
-    preview_external_knowledge,
-    search_external_knowledge,
-    sync_external_knowledge,
-)
-from backend.graph.query_service import (
-    find_package_usage,
-    get_component_dependencies,
-    search_architecture_knowledge,
-    search_project,
-    trace_component_dependencies,
-    trace_package_impact,
-)
+from backend.graph.graph_connection import connection_options, is_local_host
 
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
@@ -42,18 +29,8 @@ graph = None
 def connect_graph():
     host = os.getenv("FALKORDB_HOST", "").strip()
     password = os.getenv("FALKORDB_PASSWORD", "")
-    username = os.getenv("FALKORDB_USERNAME", "").strip() or None
     port = int(os.getenv("FALKORDB_PORT", "6379"))
     graph_name = os.getenv("FALKORDB_GRAPH", "techcompass")
-    tls_setting = os.getenv("FALKORDB_TLS")
-    if tls_setting is None:
-        use_tls = True
-    else:
-        normalized_tls = tls_setting.strip().lower()
-        if normalized_tls not in {"1", "true", "yes", "0", "false", "no"}:
-            raise ValueError("FALKORDB_TLS must be set to true or false")
-        use_tls = normalized_tls in {"1", "true", "yes"}
-
     if not host or not password:
         raise RuntimeError(
             "Set FALKORDB_HOST and FALKORDB_PASSWORD in .env"
@@ -67,13 +44,8 @@ def connect_graph():
     db = FalkorDB(
         host=host,
         port=port,
-        username=username,
         password=password,
-        ssl=use_tls,
-        ssl_cert_reqs="required" if use_tls else None,
-        ssl_check_hostname=use_tls,
-        socket_connect_timeout=5,
-        socket_timeout=10,
+        **connection_options(),
     )
 
     selected_graph = db.select_graph(graph_name)
@@ -107,7 +79,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="TechCompass Graph API",
+    title="TechCompass Project Update API",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -131,30 +103,8 @@ app.add_middleware(
 )
 
 
-class AgentQuestion(BaseModel):
-    question: str = Field(min_length=3, max_length=1500)
-
-
-class ArticleSubmission(BaseModel):
-    url: str = Field(min_length=1, max_length=2000)
-
-
-class GoogleNewsOptions(BaseModel):
-    query: str = Field(default="", max_length=250)
-    language: str = Field(
-        default="en-US",
-        pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z]{2})?$",
-    )
-    country: str = Field(default="US", pattern=r"^[A-Za-z]{2}$")
-
-
-class KnowledgePreviewRequest(BaseModel):
-    size: str = Field(default="small", pattern=r"^(small|medium)$")
-    google_news: GoogleNewsOptions = Field(default_factory=GoogleNewsOptions)
-
-
-class KnowledgeSyncRequest(BaseModel):
-    google_news: GoogleNewsOptions = Field(default_factory=GoogleNewsOptions)
+class UpdateReportRequest(BaseModel):
+    days: int = Field(default=30, ge=1, le=90)
 
 
 @app.get("/health/live")
@@ -187,324 +137,65 @@ def readiness():
         )
 
 
-@app.get("/api/graph/summary")
-def graph_summary():
+@app.post("/api/updates/run")
+def run_project_update(request: UpdateReportRequest):
     if graph is None:
         raise HTTPException(
             status_code=503,
             detail="Graph database is not connected",
         )
 
-    # Static labels only: no user-provided Cypher or label injection.
-    labels = [
-        "Project",
-        "RepoComponent",
-        "Package",
-        "PackageVersion",
-        "SourceFile",
-        "Symbol",
-        "Document",
-        "DocSection",
-        "Evidence",
-        "Technology",
-        "Approach",
-        "Constraint",
-        "ExternalItem",
-        "ExternalReference",
-    ]
+    days = request.days
+    question = (
+        "Find external technology launches, releases, and capability updates "
+        f"from the last {days} days that could materially benefit or affect "
+        "AnythingLLM. Use the project graph to cover its objectives and "
+        "architecture. Segment the report by project objective/capability, "
+        "explain what each external technology does and the plausible impact "
+        "on AnythingLLM's implementation, cite external sources and graph "
+        "evidence, and distinguish article publication dates from verified "
+        "launch dates."
+    )
+    events: Queue = Queue()
 
-    try:
-        counts = {}
-        for label in labels:
-            result = graph.ro_query(
-                f"MATCH (n:{label}) RETURN count(n) AS count"
+    def publish_progress(progress: dict):
+        events.put({"type": "progress", **progress})
+
+    def run_report():
+        try:
+            report = run_graph_agent(
+                graph, question, progress_callback=publish_progress,
             )
-            counts[label] = int(result.result_set[0][0])
+            events.put({"type": "report", "report": report, "days": days})
+        except Exception:
+            logger.exception("TechCompass project update failed")
+            events.put({
+                "type": "error",
+                "message": "The update check failed. See the backend log for details.",
+            })
+        finally:
+            events.put(None)
 
-        return {
-            "graph": os.getenv("FALKORDB_GRAPH", "techcompass"),
-            "node_counts": counts,
-            "total_indexed_nodes": sum(counts.values()),
-        }
-    except Exception:
-        logger.exception("Graph summary query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to query graph summary",
-        )
+    def stream_events():
+        Thread(target=run_report, daemon=True).start()
+        yield "data: " + json.dumps({
+            "type": "progress",
+            "stage": "starting",
+            "status": "running",
+            "detail": f"Starting the {days}-day AnythingLLM update check.",
+        }) + "\n\n"
+        while True:
+            try:
+                event = events.get(timeout=15)
+            except Empty:
+                yield ": keep-alive\n\n"
+                continue
+            if event is None:
+                break
+            yield "data: " + json.dumps(event, ensure_ascii=False, default=str) + "\n\n"
 
-
-@app.get("/api/graph/project")
-def project_overview():
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return {"components": search_project(graph)}
-    except Exception:
-        logger.exception("Project query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to query project graph",
-        )
-
-
-@app.get("/api/graph/dependencies")
-def component_dependencies(
-    component: str = Query(min_length=1, max_length=100),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return {
-            "component": component,
-            "dependencies": get_component_dependencies(graph, component),
-        }
-    except Exception:
-        logger.exception("Dependency query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to query dependencies",
-        )
-
-
-@app.get("/api/graph/package-usage")
-def package_usage(
-    package: str = Query(min_length=1, max_length=200),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return {
-            "package": package,
-            "usage": find_package_usage(graph, package),
-        }
-    except Exception:
-        logger.exception("Package usage query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to query package usage",
-        )
-
-
-@app.get("/api/graph/architecture")
-def architecture_search(
-    q: str = Query(min_length=1, max_length=200),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return {
-            "query": q,
-            "results": search_architecture_knowledge(graph, q),
-        }
-    except Exception:
-        logger.exception("Architecture query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to query architecture knowledge",
-        )
-
-
-@app.get("/api/graph/package-impact")
-def package_impact(
-    package: str = Query(min_length=1, max_length=200),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return {
-            "package": package,
-            "impact": trace_package_impact(graph, package),
-        }
-    except Exception:
-        logger.exception("Package impact query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to query package impact",
-        )
-
-
-@app.get("/api/graph/component-impact")
-def component_impact(
-    component: str = Query(min_length=1, max_length=100),
-    depth: int = Query(default=1, ge=1, le=4),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return trace_component_dependencies(graph, component, depth)
-    except Exception:
-        logger.exception("Component impact query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to trace component dependencies",
-        )
-
-
-@app.get("/api/graph/visualization")
-def graph_visualization(
-    component: str = Query(min_length=1, max_length=100),
-    depth: int = Query(default=4, ge=1, le=4),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        trace = trace_component_dependencies(graph, component, depth)
-        package_versions: dict[str, set[str]] = {}
-        for path in trace.get("paths", []):
-            for name, version in zip(
-                path.get("dependency_path", [])[1:],
-                path.get("versions", []),
-            ):
-                if name and version:
-                    package_versions.setdefault(name, set()).add(version)
-        return {
-            "trace": trace,
-            "external_evidence": external_evidence_for_packages(
-                graph,
-                package_versions,
-            ),
-        }
-    except Exception:
-        logger.exception("Graph visualization query failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to load graph visualization",
-        )
-
-
-@app.get("/api/knowledge/search")
-def external_knowledge_search(
-    q: str = Query(min_length=2, max_length=200),
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return {
-            "query": q,
-            "results": search_external_knowledge(graph, q),
-        }
-    except Exception:
-        logger.exception("External knowledge search failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Unable to search external knowledge",
-        )
-
-
-@app.post("/api/knowledge/sync")
-def sync_knowledge(request: KnowledgeSyncRequest | None = Body(default=None)):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return sync_external_knowledge(
-            graph,
-            google_news=(request.google_news.model_dump() if request else None),
-        )
-    except Exception:
-        logger.exception("External knowledge sync failed")
-        raise HTTPException(
-            status_code=502,
-            detail="External knowledge sync failed. Check server logs.",
-        )
-
-
-@app.post("/api/knowledge/preview")
-def preview_knowledge(request: KnowledgePreviewRequest | None = Body(default=None)):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return preview_external_knowledge(
-            graph,
-            google_news=(
-                request.google_news.model_dump() if request else None
-            ),
-            size=request.size if request else "small",
-        )
-    except Exception:
-        logger.exception("External knowledge preview failed")
-        raise HTTPException(
-            status_code=502,
-            detail="External knowledge preview failed. Check server logs.",
-        )
-
-@app.post("/api/knowledge/articles")
-def submit_article(
-    request: ArticleSubmission,
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return ingest_article_url(graph, request.url)
-    except ExternalSourceError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception:
-        logger.exception("Article ingestion failed")
-        raise HTTPException(
-            status_code=502,
-            detail="Article ingestion failed. Check server logs.",
-        )
-
-
-@app.post("/api/agent/ask")
-def ask_agent(
-    request: AgentQuestion,
-):
-    if graph is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Graph database is not connected",
-        )
-
-    try:
-        return run_graph_agent(graph, request.question)
-    except Exception:
-        logger.exception("TechCompass agent request failed")
-        raise HTTPException(
-            status_code=502,
-            detail="Agent request failed. Check server logs.",
-        )
+    return StreamingResponse(
+        stream_events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

@@ -19,5 +19,40 @@
       "text": "Explain why an external item is relevant separately from what its evidence establishes about the analyzed project's dependencies, imports, or architecture.",
       "source": "User requirement: separate relevance and project impact"
     }
-  ]
+  ],
+  "source_strategy": {
+    "source_priorities": [
+      {
+        "category": "dependency_security",
+        "sources": ["OSV", "GitHub Advisories", "NVD"],
+        "use_when": "A package in the analyzed repository graph may be affected by a vulnerability or supply-chain incident.",
+        "evidence_rule": "Require exact package ecosystem and version/range evidence before claiming exposure; NVD keyword hits are discovery leads."
+      },
+      {
+        "category": "analyzed_project_changes",
+        "sources": ["GitHub Releases", "official project RSS/Atom"],
+        "use_when": "The analyzed project's own maintainers publish a release, security notice, or roadmap change.",
+        "evidence_rule": "Use the analyzed Project repository_url or official project feeds from the graph; do not substitute TechCompass's own repository or dependencies."
+      },
+      {
+        "category": "dependency_changes",
+        "sources": ["GitHub Releases", "OSV", "GitHub Advisories"],
+        "use_when": "A release or advisory concerns a dependency actually used by the analyzed project.",
+        "evidence_rule": "Derive packages, versions, components, and upstream URLs from the analyzed project graph; require an explicit graph path before claiming implementation impact."
+      },
+      {
+        "category": "ecosystem_discovery",
+        "sources": ["Google News", "Hacker News"],
+        "use_when": "Discover developments that relate to the analyzed project's documented purpose, architecture, integrations, or business objectives.",
+        "evidence_rule": "Treat these as candidate discovery sources; verify important claims against the original maintainer, vendor, or incident source."
+      },
+      {
+        "category": "research",
+        "sources": ["arXiv", "Crossref"],
+        "use_when": "The user asks for research or emerging methods relevant to graph retrieval, repository understanding, or AI agents.",
+        "evidence_rule": "Label papers as research rather than current technology news."
+      }
+    ],
+    "upstream_repositories": []
+  }
 }

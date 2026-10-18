@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from bisect import bisect_right
 from pathlib import Path
 
@@ -7,7 +8,11 @@ from tree_sitter_language_pack import get_parser
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = ROOT / "data" / "source" / "anything-llm"
-OUT = ROOT / "data" / "index" / "codebase.json"
+_index_path = Path(os.getenv(
+    "TECHCOMPASS_CODEBASE_INDEX",
+    "data/index/codebase.json",
+))
+OUT = _index_path if _index_path.is_absolute() else ROOT / _index_path
 
 SKIP_DIRS = {
     ".git", "node_modules", "dist", "build", "coverage",

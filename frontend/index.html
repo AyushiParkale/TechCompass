@@ -5,200 +5,115 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Explore repository evidence and project-relevant technology signals with TechCompass."
+      content="Run a graph-backed technology update check for AnythingLLM and review its impact report."
     />
-    <title>TechCompass · Project intelligence</title>
+    <title>TechCompass · Project Update Report</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="/config.js"></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Workspace navigation">
-        <a class="brand" href="#overview" aria-label="TechCompass home">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="TechCompass home">
           <span class="brand-mark" aria-hidden="true">T</span>
           <span class="brand-copy">
             <strong>TechCompass</strong>
             <small>Project intelligence</small>
           </span>
         </a>
-
-        <div class="project-context">
-          <span class="project-avatar" aria-hidden="true">A</span>
-          <span>
-            <small>Analyzed repository</small>
-            <strong>AnythingLLM</strong>
-          </span>
-          <span class="project-chevron" aria-hidden="true">⌄</span>
+        <div class="project-badge">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Project</span>
+          <strong>AnythingLLM</strong>
         </div>
+      </header>
 
-        <p class="nav-label">Workspace</p>
-        <nav class="workspace-nav">
-          <a href="#chat-section"><span aria-hidden="true">◈</span>Signal research</a>
-          <a href="#graph-section"><span aria-hidden="true">⌘</span>Architecture explorer</a>
-          <a href="#sources-section"><span aria-hidden="true">◉</span>Sources &amp; monitoring</a>
-        </nav>
+      <main class="page-main">
+        <section class="hero" aria-labelledby="page-title">
+          <p class="eyebrow">Graph-backed technology watch</p>
+          <h1 id="page-title">What changed that could matter to AnythingLLM?</h1>
+          <p class="hero-copy">
+            Run a focused update check across AnythingLLM’s goals and architecture.
+            Get dated external findings, project-specific impact, and the evidence paths behind each connection.
+          </p>
+        </section>
 
-        <div class="sidebar-note">
-          <span class="sidebar-note-icon" aria-hidden="true">⌁</span>
-          <strong>Evidence first</strong>
-          <p>Recommendations are grounded in repository paths, documentation, and cited sources.</p>
-        </div>
+        <section class="run-card" aria-label="Update check controls">
+          <div class="window-control">
+            <label for="lookback-days">Look back</label>
+            <div class="number-field">
+              <input id="lookback-days" name="days" type="number" value="30" min="1" max="90" step="1" inputmode="numeric" />
+              <span>days</span>
+            </div>
+            <p>Choose 1–90 days (up to about 3 months).</p>
+          </div>
+          <button id="run-button" class="button button-primary" type="button">
+            <span class="button-icon" aria-hidden="true">↻</span>
+            <span>Check for updates</span>
+          </button>
+        </section>
 
-        <div class="sidebar-footer">
-          <span class="avatar" aria-hidden="true">TC</span>
-          <span><strong>TechCompass</strong><small>Graph workspace</small></span>
-        </div>
-      </aside>
-
-      <div class="workspace-main">
-        <header class="topbar" id="overview">
-          <div class="breadcrumb">Workspace <span>/</span> <strong>AnythingLLM</strong></div>
-          <div class="topbar-context"><span class="status-dot"></span>Graph-backed research</div>
-        </header>
-
-        <main id="chat-view" class="content">
-          <section class="page-heading">
+        <section id="progress-panel" class="progress-panel" aria-labelledby="progress-title" hidden>
+          <div class="section-heading">
             <div>
-              <p class="eyebrow">Project intelligence / Overview</p>
-              <h1>Technology signals, in project context</h1>
-              <p class="subtitle">
-                Explore AnythingLLM’s graph, ask the agent to find relevant developments,
-                and inspect what the repository evidence says about their impact.
-              </p>
+              <p class="eyebrow">Live check</p>
+              <h2 id="progress-title">Investigating the project graph</h2>
             </div>
-          </section>
+            <span id="progress-status" class="status-pill">Running</span>
+          </div>
+          <ol id="check-list" class="check-list" aria-live="polite">
+            <li data-stage="graph" class="check-item">
+              <span class="check-icon" aria-hidden="true" data-number="1">1</span>
+              <span class="check-copy"><strong>Read project context</strong><small>Goals, capabilities, documentation, and code paths</small></span>
+              <span class="check-state">Waiting</span>
+            </li>
+            <li data-stage="plan" class="check-item">
+              <span class="check-icon" aria-hidden="true" data-number="2">2</span>
+              <span class="check-copy"><strong>Plan graph-derived searches</strong><small>Cover the project’s major architecture areas</small></span>
+              <span class="check-state">Waiting</span>
+            </li>
+            <li data-stage="search" class="check-item">
+              <span class="check-icon" aria-hidden="true" data-number="3">3</span>
+              <span class="check-copy"><strong>Search current sources</strong><small>Collect dated external records in the selected window</small></span>
+              <span class="check-state">Waiting</span>
+            </li>
+            <li data-stage="verification" class="check-item">
+              <span class="check-icon" aria-hidden="true" data-number="4">4</span>
+              <span class="check-copy"><strong>Check corroborating sources</strong><small>Look for official launch or release confirmation</small></span>
+              <span class="check-state">Waiting</span>
+            </li>
+            <li data-stage="impact" class="check-item">
+              <span class="check-icon" aria-hidden="true" data-number="5">5</span>
+              <span class="check-copy"><strong>Map possible project impact</strong><small>Connect findings to graph objectives and implementation evidence</small></span>
+              <span class="check-state">Waiting</span>
+            </li>
+            <li data-stage="report" class="check-item">
+              <span class="check-icon" aria-hidden="true" data-number="6">6</span>
+              <span class="check-copy"><strong>Prepare the report</strong><small>Separate confirmed facts from impact hypotheses</small></span>
+              <span class="check-state">Waiting</span>
+            </li>
+          </ol>
+          <p id="progress-detail" class="progress-detail" aria-live="polite">Starting the update check…</p>
+        </section>
 
-          <section id="chat-section" class="panel chat-panel" aria-label="Signal research agent">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Signal research</p>
-                <h2>Ask TechCompass</h2>
-                <p class="panel-description">The agent can use the TechCompass objectives and AnythingLLM graph to choose focused live-source searches.</p>
-              </div>
-              <span class="panel-tag">Graph + live sources</span>
+        <section id="report-panel" class="report-panel" aria-labelledby="report-title" hidden>
+          <div class="section-heading report-heading">
+            <div>
+              <p class="eyebrow">AnythingLLM technology brief</p>
+              <h2 id="report-title">Update report</h2>
             </div>
-            <div id="messages" class="messages" aria-live="polite"></div>
-            <form id="chat-form" class="composer">
-              <label class="visually-hidden" for="question-input">Your question</label>
-              <textarea
-                id="question-input"
-                name="question"
-                rows="2"
-                minlength="3"
-                maxlength="1500"
-                placeholder="Find recent technology news relevant to this project and explain relevance separately from code impact..."
-                required
-              ></textarea>
-              <div class="composer-footer">
-                <span>Check the source links and graph tools behind each answer.</span>
-                <button id="send-button" class="button button-primary" type="submit">Ask agent <span aria-hidden="true">→</span></button>
-              </div>
-            </form>
-          </section>
+            <span id="report-period" class="period-label"></span>
+          </div>
+          <div id="report-content" class="report-content"></div>
+          <details id="audit-details" class="audit-details" hidden>
+            <summary>Search audit</summary>
+            <div id="audit-content" class="audit-content"></div>
+          </details>
+        </section>
 
-          <section id="graph-section" class="panel" aria-label="Architecture explorer">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Repository evidence</p>
-                <h2>Architecture explorer</h2>
-                <p class="panel-description">Trace package paths from a repository component and inspect linked external evidence.</p>
-              </div>
-            </div>
-            <form id="graph-form" class="graph-controls">
-              <label for="component-input">Component</label>
-              <input
-                id="component-input"
-                name="component"
-                value="anything-llm-server"
-                maxlength="100"
-                required
-              />
-              <label for="depth-input">Path depth</label>
-              <select id="depth-input" name="depth">
-                <option value="1">1 hop</option>
-                <option value="2">2 hops</option>
-                <option value="3">3 hops</option>
-                <option value="4" selected>4 hops</option>
-              </select>
-              <button id="graph-button" class="button button-primary" type="submit">Explore paths</button>
-            </form>
-            <p id="graph-status" class="panel-status" role="status"></p>
-            <div id="graph-canvas" class="graph-canvas" role="img" aria-label="Dependency path graph">
-              <p class="empty-state">Explore a component to draw its dependency paths.</p>
-            </div>
-            <div id="external-evidence" class="external-evidence"></div>
-          </section>
-
-          <section id="sources-section" class="panel" aria-label="External sources">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">External knowledge</p>
-                <h2>Sources &amp; monitoring</h2>
-                <p class="panel-description">Preview connector responses without writing, or explicitly sync fetched items to FalkorDB.</p>
-              </div>
-              <div class="source-actions">
-                <form id="preview-form">
-                  <button id="preview-button" class="button button-secondary" type="submit">Test connectors</button>
-                </form>
-                <form id="sync-form">
-                  <button id="sync-button" class="button button-primary" type="submit">Sync sources</button>
-                </form>
-              </div>
-            </div>
-            <div class="news-controls" aria-label="Google News connector settings">
-              <div class="field-group field-query">
-                <label for="google-news-query">Google News query <span>Optional</span></label>
-                <input id="google-news-query" maxlength="250" value="" placeholder='e.g. "Hugging Face" OR open source AI' />
-              </div>
-              <div class="field-group">
-                <label for="google-news-language">Language</label>
-                <select id="google-news-language">
-                  <option value="en-US" selected>English (US)</option>
-                  <option value="en-GB">English (UK)</option>
-                  <option value="hi-IN">Hindi (India)</option>
-                </select>
-              </div>
-              <div class="field-group">
-                <label for="google-news-country">Region</label>
-                <select id="google-news-country">
-                  <option value="US" selected>United States</option>
-                  <option value="IN">India</option>
-                  <option value="GB">United Kingdom</option>
-                  <option value="CA">Canada</option>
-                </select>
-              </div>
-              <div class="field-group">
-                <label for="preview-size">Preview size</label>
-                <select id="preview-size">
-                  <option value="small" selected>Small</option>
-                  <option value="medium">Medium</option>
-                </select>
-              </div>
-            </div>
-            <p id="source-status" class="panel-status" role="status"></p>
-            <div id="connector-results" class="connector-results"></div>
-            <div class="source-forms">
-              <form id="article-form" class="source-form">
-                <label for="article-url">Add a public article or advisory URL</label>
-                <div class="inline-form">
-                  <input id="article-url" name="url" type="url" placeholder="https://example.com/article" required />
-                  <button id="article-button" class="button button-secondary" type="submit">Add URL</button>
-                </div>
-              </form>
-              <form id="search-form" class="source-form">
-                <label for="knowledge-query">Search ingested external knowledge</label>
-                <div class="inline-form">
-                  <input id="knowledge-query" name="query" maxlength="200" placeholder="e.g. package or vulnerability" required />
-                  <button class="button button-secondary" type="submit">Search</button>
-                </div>
-              </form>
-            </div>
-            <div id="search-results" class="external-evidence"></div>
-          </section>
-          <footer class="page-footer">TechCompass · Evidence first, recommendations second.</footer>
-        </main>
-      </div>
+        <p class="page-note">Every finding is tied to dated external evidence. Graph matches explain why it may matter; they do not by themselves prove impact.</p>
+      </main>
     </div>
   </body>
 </html>

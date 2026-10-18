@@ -1,9 +1,9 @@
 # TechCompass
 
-TechCompass is a small chat interface for exploring a knowledge graph
-built from the AnythingLLM repository. A FastAPI service queries FalkorDB and
-uses Groq to answer questions; the web chat shows the graph tools used for each
-answer.
+TechCompass creates graph-backed technology update reports for AnythingLLM.
+A FastAPI service queries FalkorDB, searches current external sources, and uses
+Gemini to explain how findings may relate to project goals and architecture.
+The web page streams the checks in progress and renders the completed report.
 
 The graph contains project components and dependencies, source-file and symbol
 index data, documentation sections, documentation-backed architecture
@@ -18,7 +18,7 @@ the analyzed AnythingLLM `Project` node. Review or edit
 FalkorDB graph with:
 
 ```powershell
-python backend\graph\ingest_project_profile.py
+python -m scripts.graph.ingest_project_profile
 ```
 
 The agent uses that profile to reason about why external items matter to
@@ -26,14 +26,14 @@ TechCompass, while dependency, import, and documentation evidence describes
 impact on the analyzed repository. The profile is a maintainer brief; update it
 when the product goals change.
 
-## Try the chat
+## Run an update report
 
 ### Requirements
 
 - Python 3.10 or newer and `pip`
 - Node.js 18 or newer (only needed to build the static frontend)
 - A reachable **deployed FalkorDB instance** containing a TechCompass graph
-- A Groq API key
+- A Gemini API key
 
 The repository intentionally excludes `.env`, the downloaded AnythingLLM
 source and docs, and generated index data. A fresh clone can connect to an
@@ -50,11 +50,13 @@ Copy-Item .env.example .env
 ```
 
 Edit `.env` and set the FalkorDB Cloud endpoint, port, username, password,
-graph name, and Groq API key. Set `FALKORDB_TLS` to match the instance
+graph name, and Gemini API key. Set `FALKORDB_TLS` to match the instance
 configuration. For a public deployment, enable TLS on FalkorDB and set this to
-`true`; do not send database credentials over an unencrypted connection.
+`true`; do not send database credentials over an unencrypted connection. The
+default model is `gemini-3.8-flash`; set `GEMINI_MODEL` to another model
+available to your API key if needed.
 
-Do not commit `.env`, paste secret values into chat, or put database/Groq
+Do not commit `.env`, paste secret values into chat, or put database/Gemini
 credentials in frontend variables. `.env.example` contains placeholders only.
 
 Create an environment and install the API dependencies:
@@ -76,7 +78,7 @@ worked at <http://127.0.0.1:8000/health/ready>; a successful response includes
 `"status": "ready"` and the node count. The liveness endpoint is
 <http://127.0.0.1:8000/health/live>.
 
-### 2. Build and open the chat UI
+### 2. Build and open the report UI
 
 In a second PowerShell terminal, from the project root:
 
@@ -87,13 +89,10 @@ npm run build
 python -m http.server 5173 --bind 127.0.0.1 --directory dist
 ```
 
-Open <http://127.0.0.1:5173> and ask a question. For example:
-
-> What agent-related capabilities are documented in this project?
-
-Expand **Evidence tools used** below a reply to inspect the graph tools
-requested. This small interface displays the answer as plain text; it does not
-render model output as HTML.
+Open <http://127.0.0.1:5173>, choose a lookback window from 1 to 90 days, and
+select **Check for updates**. The page streams graph loading, search planning,
+source checks, graph impact mapping, and report generation. The report groups
+findings by project objectives and includes external links and graph evidence.
 
 Stop the API and static server with `Ctrl+C` in their respective terminals.
 
@@ -106,186 +105,149 @@ python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
 ```
 
-The tests cover public API access, depth-bounded component traces,
-missing-path responses, Yarn lockfile dependency extraction, safe external URL
-handling, feed/article parsing, and rejection of unconfigured browser origins.
-They do not require a FalkorDB connection.
-
-With the API running, test a public read-only endpoint:
+With the API running, check readiness:
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/graph/summary"
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/health/ready"
 ```
 
 ## Available API routes
 
-All API routes are public and require no password or bearer token.
+The backend exposes health checks and a streaming update-report endpoint.
 
 | Method | Route | Description |
 | --- | --- | --- |
 | `GET` | `/health/live` | Process liveness |
 | `GET` | `/health/ready` | FalkorDB readiness and node count |
-| `GET` | `/api/graph/summary` | Counts for indexed graph node types |
-| `GET` | `/api/graph/project` | Indexed project components |
-| `GET` | `/api/graph/dependencies?component=server` | Declared dependencies for a component |
-| `GET` | `/api/graph/package-usage?package=react` | Files directly importing a package |
-| `GET` | `/api/graph/architecture?q=agent` | Search documentation-backed architecture evidence |
-| `GET` | `/api/graph/package-impact?package=react` | Compare declarations with direct imports |
-| `GET` | `/api/graph/component-impact?component=server&depth=4` | Trace declared and transitive package dependencies up to four hops, with lockfile evidence |
-| `GET` | `/api/graph/visualization?component=anything-llm-server&depth=4` | Dependency paths and related external evidence for the graph explorer |
-| `GET` | `/api/knowledge/search?q=langchain` | Search ingested advisories and articles |
-| `POST` | `/api/knowledge/preview` | Fetch a bounded live sample from each connector without writing to FalkorDB |
-| `POST` | `/api/knowledge/sync` | Manually sync security, research, release, HN, and configured RSS/Atom sources |
-| `POST` | `/api/knowledge/articles` | Fetch and index a manually submitted public HTTPS article URL |
-| `POST` | `/api/agent/ask` | Ask the Groq agent to investigate the graph |
+| `POST` | `/api/updates/run` | Run the fixed AnythingLLM update job with a 1–90 day lookback |
 
-The agent is evidence-grounded but can miss relevant graph records or make
-incomplete tool selections. Check the returned `tools_used` trace and evidence;
-absence from results is not proof that a capability is missing.
-Component impact distinguishes an unmodeled component from a modeled component
-with no path at the requested depth. Neither result proves the real codebase has
-no such dependency. Compare `depth=1` and `depth=4` for the same component to
-see direct versus transitive package paths and the lockfile evidence behind
-each hop.
+Send a JSON request and read the server-sent event stream:
 
-### External knowledge sync
+```json
+{"days":30}
+```
 
-Use **Test connectors (read-only)** to inspect live API responses before
-syncing. The preview shows the graph-derived package versions, package keyword,
-research term, configured feeds and release mappings used for the requests,
-plus each source's status, result count, and up to three normalized records.
-Choose Small or Medium to adjust the sample: Small checks up to five installed
-versions, one package keyword/research term, one GitHub advisory page, and one
-release mapping; Medium checks up to 20 versions, three package keywords and
-research terms, two advisory pages, and three release mappings. NVD and arXiv
-pace requests, so Medium can take longer. This preview does not upsert records
-into FalkorDB. `/api/knowledge/preview` uses the same source fetchers as sync,
-with reduced input limits.
+The stream includes progress events while checks run, then a report event with
+the Markdown report and a `tools_used` search audit.
 
-The Google News controls accept a search query, language, and region. The same
-settings are used for preview and the next explicit sync; clear the query to
-skip Google News. The feed returns matching headlines and links from Google
-News RSS and does not guarantee exhaustive tech coverage.
+### External discovery
 
-For project-aware live discovery, ask the chat to find current or upcoming
-news relevant to this project. The agent first reads the project, component,
-dependency, and documentation context from FalkorDB, then chooses among
-source-specific API tools such as Google News, OSV, GitHub Advisories, NVD,
-arXiv, Crossref, Hacker News, configured RSS, and configured GitHub releases.
-The query terms come from the graph evidence for that request, not a fixed
-technology keyword list. Each live-source tool stores returned records in
-FalkorDB and reports the sources and links used. If the graph does not contain
-an explicit business goal, the agent is instructed to say so rather than infer
-one.
+The agent derives its web searches from the analyzed project's graph context,
+then searches with Tavily and falls back to DuckDuckGo or Bing via DDGS if
+Tavily fails or returns no dated matches. It verifies launch dates against
+official sources, explains relevance and potential project impact separately,
+and keeps source links in the response. Security tools for OSV, GitHub
+Advisories, and NVD remain available for explicit security questions.
 
-Use **Sync external sources** to fetch OSV advisories, recent GitHub npm
-advisories, NVD CVE keyword results, arXiv and Crossref research metadata,
-Hacker News stories, configured GitHub releases, and any configured RSS/Atom
-feeds. Research queries use package names from the graph, ordered by project
-usage; no AI/LLM package-name allowlist is applied. Set
-`TECHCOMPASS_RESEARCH_TERMS` to explicitly override these with targeted topics. Sync
-runs only when explicitly requested; there is no background scheduler. A failed
-source is reported individually while successfully fetched sources can still
-be ingested.
-Before syncing, configure the API process to use the intended graph
-(`FALKORDB_GRAPH=techcompass-rebuild-...`) and restart it. Sync writes to that
-configured graph; it does not switch graphs or clear existing records.
-
-Optional backend environment settings:
+Backend search configuration is server-side:
 
 ```text
-TECHCOMPASS_RSS_FEEDS=https://example.org/feed.xml,https://example.net/rss.xml
-NVD_API_KEY=your-server-side-nvd-key
+TAVILY_API_KEY=your-server-side-tavily-key
 GITHUB_TOKEN=your-optional-github-token
-TECHCOMPASS_GITHUB_RELEASE_REPOS=langchain=langchain-ai/langchainjs,openai=openai/openai-node
-TECHCOMPASS_RESEARCH_TERMS=langchain,openai,retrieval augmented generation
+NVD_API_KEY=your-server-side-nvd-key
 ```
 
-Configure no more than 20 HTTPS RSS/Atom feed URLs. Without an NVD API key, a
-sync queries only five package keywords to respect the anonymous service rate
-limit. Store keys only in the backend environment, never in frontend settings.
-Without a GitHub token, public endpoints use GitHub's unauthenticated rate
-limits; the token is optional and must stay server-side. GitHub release targets
-must be explicitly mapped as `npm-package=owner/repository` because the
-dependency graph does not currently store upstream repository URLs. At most 20
-repositories are queried, with up to ten latest stable releases each. arXiv
-requests are paced, and Crossref requests are limited to five terms and ten
-results per term. The anonymous NVD check is paced and may take about 25
-seconds.
-The graph records exact OSV package-version matches as `AFFECTS_VERSION`;
-GitHub affected ranges and NVD/RSS text matches are evidence to review, not
-proof that the indexed lockfile version is vulnerable. Articles, papers, and
-stories are linked to packages only when their title or summary mentions a
-modeled package. GitHub release links use the explicit package/repository
-mapping, not vulnerability evidence. arXiv and Crossref contribute metadata
-and abstracts only, not full paper text. Review each source's license and reuse
-terms before redistributing its content; RSS publishers also set their own
-terms. Hacker News collection is limited to matching story results, not
-comments.
+Keep keys in the backend environment, never in frontend configuration. The
+graph-aware web search requires a Tavily API key. Public GitHub requests
+use the unauthenticated rate limit when no token is configured.
 
-The **Add a public article or advisory URL** form accepts HTTPS URLs only. URL
-fetching blocks non-public DNS addresses, non-default ports, and redirects,
-limits responses to 2 MB, and stores only extracted title/summary text plus
-source metadata. It does not bypass paywalls or fetch arbitrary linked pages.
-Submitted HTML and feed content are untrusted evidence, not instructions to the
-agent.
+## Building the AnythingLLM context graph
 
-The graph explorer draws up to eight dependency paths (maximum depth four) and
-lists linked external evidence. Select a component/depth and use the source
-search to inspect already ingested records. Graph and external-knowledge API
-routes are public. The default CORS configuration is a browser policy, not
-authentication; direct API clients can still call the endpoints.
+The context graph is designed for discovery and impact analysis across goals,
+capabilities, workflows, architecture patterns, technologies, components,
+code, and cited documentation. Package nodes remain available for exact
+dependency and security checks, but they are supporting evidence rather than
+the default way to discover technology updates.
 
-## Refreshing the graph
+The reviewed project context lives in
+[`backend/graph/anythingllm_context.json`](backend/graph/anythingllm_context.json).
+It is grounded in the checked-out AnythingLLM README and official docs. The
+ingester links goals and capabilities to documentation evidence and candidate
+source files. Code-file links are explicitly marked as candidate mappings; a
+directory match does not prove that every linked file implements the capability.
+Edit the context profile when the upstream repository or docs establish a new
+capability, and retain its source paths so the graph can show why it believes
+the claim.
 
-Graph ingestion scripts are maintainer workflows, not part of the chat startup.
-They need the AnythingLLM source/docs under the expected `data/source/` paths
-and an extracted code index under `data/index/`. That input data is deliberately
-not included in this public repository. Run ingestion scripts from the project
-root only after restoring/providing the source corpus and checking the target
-FalkorDB instance:
+The node/relationship model, evidence confidence rules, and ordered build
+stages are documented in
+[`backend/graph/GRAPH_MODEL.md`](backend/graph/GRAPH_MODEL.md). The canonical
+pipeline order is defined in `scripts/graph/build.py`; the PowerShell rebuild
+script handles graph isolation and delegates the ordered stages to that runner.
 
-1. Extract and ingest source files and symbols.
-2. Ingest components and dependencies, docs, and architecture evidence.
-3. Resolve imports and link documentation to code.
-4. Parse/ingest lockfile versions and run the lockfile verifier.
+The reviewed AnythingLLM map currently spans eight objectives and seventeen
+capabilities, including document ingestion and sync, retrieval and vector
+storage, agents and MCP, model routing, local deployment, memory, meeting and
+media workflows, access controls, APIs, and operational telemetry. External
+discovery reserves a search for each objective before adding extra query angles,
+balances results across those searches, and reports result counts by query and
+project area. It corroborates leading candidates with follow-up searches and
+filters AnythingLLM's own domains and repository from external findings. The
+search window filters publication dates; a launch is called confirmed only
+when an official source establishes its release or availability date.
 
-All graph scripts use the configured remote FalkorDB connection; loopback
-database hosts are rejected. Treat ingestion as writes to the configured
-deployed graph, not as a local test operation.
-
-To rebuild without disturbing the currently configured graph, set
-`FALKORDB_GRAPH` in the PowerShell session to a **new, unused graph name**
-before running the ingestion workflow. FalkorDB creates the graph on first
-write, so this clean namespace prevents stale records from the previous build
-while keeping that graph available for comparison or rollback. Do not use the
-existing graph name for a parallel rebuild.
-
-Run the complete workflow from the project root in this order:
+Optional manual connectivity checks live in `scripts/` and are not part of the
+application startup:
 
 ```powershell
-$env:FALKORDB_GRAPH = "techcompass-rebuild-20261017"
-python backend\graph\extract_codebase.py
-python backend\graph\ingest_anythingllm.py
-python backend\graph\ingest_docs.py
-python backend\graph\ingest_symbols.py
-python backend\graph\resolve_imports.py
-python backend\graph\ingest_architecture_knowledge.py
-python backend\graph\link_docs_to_code.py
-python backend\graph\parse_yarn_lockfiles.py
-python backend\graph\ingest_lockfile_versions.py
-python backend\graph\verify_lockfile_versions.py
+.\.venv\Scripts\python.exe scripts\check_falkordb.py
+.\.venv\Scripts\python.exe scripts\check_gemini.py
 ```
 
-Replace the example graph name with a unique name if it already exists.
-`parse_yarn_lockfiles.py` preserves package dependency selectors from each
-lockfile, and `ingest_lockfile_versions.py` resolves those selectors into
-version-specific `DEPENDS_ON_VERSION` edges. These complement component
-manifest declarations and retain the lockfile selector/version chain for
-multi-hop explanations. To run the API against the new graph, set the same
-`FALKORDB_GRAPH` value in the API's PowerShell session before startup. Verify
-the graph with `/health/ready` and `/api/graph/summary` before switching any
-deployed service to it.
+To refresh the reviewed context in the currently configured graph without
+rebuilding repository indexes, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.graph.ingest_project_context
+```
+
+### One-command setup from a fresh TechCompass checkout
+
+Configure `.env` first with reachable FalkorDB credentials and graph settings.
+From the TechCompass root, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\graph\setup_graph.ps1
+```
+
+The script creates `.venv` if needed and ensures `requirements.txt` is
+installed, then clones the analyzed source and its official docs into
+`data/source/anything-llm/` and `data/source/anythingllm-docs/`. Existing Git
+checkouts at those paths are reused without pulling or overwriting local work;
+non-Git folders and mismatched remotes cause a clear stop. It then runs the
+full clean graph build and, only after success, points `FALKORDB_GRAPH` in
+`.env` at the new graph. Restart the API and verify `/health/ready` afterward.
+
+To build a new graph while leaving the graph configured in `.env` untouched,
+add `-KeepCurrentGraph` to the command. The new graph name is printed during
+the run and can be activated later by setting `FALKORDB_GRAPH` in `.env`.
+
+Graph ingestion scripts are maintainer workflows, not part of report startup.
+They require the AnythingLLM repository and docs under `data/source/`, plus
+FalkorDB connection settings in `.env`. The complete rebuild uses a new,
+timestamped graph name by default and writes extraction indexes under a
+graph-specific directory. It refuses to use the graph currently configured in
+`.env`, preserving the existing graph and index files for comparison/rollback.
+
+From the project root, run:
+
+```powershell
+.\scripts\graph\rebuild_context_graph.ps1
+```
+
+To pick a graph name explicitly:
+
+```powershell
+.\scripts\graph\rebuild_context_graph.ps1 -GraphName anythingllm-context-v2-demo
+```
+
+The script ingests repository structure, manifests, docs, symbols, resolved
+imports, reviewed project context, candidate doc/code links, and lockfile
+versions. It also ingests TechCompass's own product profile separately from
+the analyzed AnythingLLM project. The API continues using the graph in `.env`
+until you deliberately set `FALKORDB_GRAPH` to the new graph and restart it.
+After the rebuild, validate `/health/ready` and run an update report to confirm
+the new context is available.
 
 ## Deployment
 
@@ -298,10 +260,10 @@ the browser/API and API/FalkorDB connections.
 ## Security notes
 
 - **There is no app authentication.** Anyone who can reach the API can read
-  graph data, invoke the Groq agent, trigger external syncs, and submit URLs.
+  graph data and invoke the agent, including its external search tools.
   Keep the API on localhost or restrict access using a private network or
   trusted gateway before exposing it beyond your machine.
-- Keep `.env`, FalkorDB credentials, and Groq keys out of Git and out of Vercel
+- Keep `.env`, FalkorDB credentials, and Gemini keys out of Git and out of Vercel
   frontend configuration.
 - `.env` and `data/` are ignored by `.gitignore`; `.env.example` is safe
   placeholder configuration.
@@ -312,9 +274,10 @@ the browser/API and API/FalkorDB connections.
 
 ```text
 backend/
-  agent/       Groq graph-tool agent
+  agent/       Gemini graph-tool agent
   api/         Public FastAPI routes
-  graph/       FalkorDB connection, query, extraction, and ingestion scripts
-frontend/      Minimal static chat UI and Vercel configuration
+  graph/       FalkorDB runtime access, reviewed profiles, and graph model docs
+frontend/      Static update-report UI and Vercel configuration
+scripts/graph/ Graph creation and ingestion pipeline
 tests/         API access and graph behavior tests
 ```

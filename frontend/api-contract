@@ -1,336 +1,46 @@
-# TechCompass API contract (draft)
-# IMPORTANT: This file defines an integration proposal. Routes marked proposed are not
-# confirmed to exist. Confirm backend routes and schemas before wiring the frontend.
 openapi: 3.1.0
 info:
-  title: TechCompass API
-  version: 0.1.0-draft
-  description: >-
-    Draft contract for a FastAPI backend integrating signal ingestion, FalkorDB graph
-    queries, opportunity synthesis, and action-plan persistence.
+  title: TechCompass Project Update API
+  version: 0.1.0
+  description: Fixed update report backed by the AnythingLLM project graph and live external search.
 servers:
   - url: http://localhost:8000
     description: Local development backend
-security: []
 paths:
+  /health/live:
+    get:
+      operationId: livenessCheck
+      responses:
+        '200':
+          description: Backend process is running
   /health/ready:
     get:
-      summary: Readiness check (expected by current HTML)
       operationId: readinessCheck
       responses:
         '200':
-          description: Backend is ready
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, examples: [ready] }
-                  services:
-                    type: object
-                    additionalProperties: { type: string }
-  /api/graph/summary:
-    get:
-      summary: Graph summary (mentioned by current HTML; verify route)
-      operationId: getGraphSummary
-      responses:
-        '200':
-          description: Graph summary
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GraphSummary' }
-  /api/graph/project:
-    get:
-      summary: Project graph (mentioned by current HTML; verify route)
-      operationId: getProjectGraph
-      responses:
-        '200':
-          description: Graph nodes and edges
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GraphData' }
-  /api/graph/architecture:
-    get:
-      summary: Architecture graph (mentioned by current HTML; verify route)
-      operationId: getArchitectureGraph
-      parameters:
-        - in: query
-          name: q
-          schema: { type: string }
-          required: false
-      responses:
-        '200':
-          description: Architecture graph nodes and edges
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GraphData' }
-  /api/graph/dependencies:
-    get:
-      summary: Dependency lookup (mentioned by current HTML; verify route)
-      operationId: getDependencies
-      parameters:
-        - in: query
-          name: component
-          schema: { type: string }
-          required: false
-      responses:
-        '200':
-          description: Dependencies
-          content:
-            application/json:
-              schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/GraphNode' } } } }
-  /api/graph/package-usage:
-    get:
-      summary: Package usage lookup (mentioned by current HTML; verify route)
-      operationId: getPackageUsage
-      parameters:
-        - in: query
-          name: package
-          schema: { type: string }
-          required: true
-      responses:
-        '200': { description: Package usage, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { type: object } } } } } } }
-  /api/graph/package-impact:
-    get:
-      summary: Package impact lookup (mentioned by current HTML; verify route)
-      operationId: getPackageImpact
-      parameters:
-        - in: query
-          name: package
-          schema: { type: string }
-          required: true
-      responses:
-        '200': { description: Package impact, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { type: object } } } } } } }
-  /api/signals:
-    get:
-      summary: PROPOSED - list and filter signals
-      operationId: listSignals
-      parameters:
-        - in: query
-          name: status
-          schema: { type: string, enum: [all, new, saved, dismissed, high] }
-        - in: query
-          name: q
-          schema: { type: string }
-        - in: query
-          name: sourceType
-          schema: { type: string }
-        - in: query
-          name: sort
-          schema: { type: string, enum: [relevance, recent, impact] }
-      responses:
-        '200':
-          description: Signal list
-          content:
-            application/json:
-              schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: '#/components/schemas/Signal' } }, total: { type: integer } } }
-  /api/signals/{signal_id}:
-    get:
-      summary: PROPOSED - fetch one signal with analysis and evidence
-      operationId: getSignal
-      parameters:
-        - in: path
-          name: signal_id
-          required: true
-          schema: { type: string }
-      responses:
-        '200': { description: Signal detail, content: { application/json: { schema: { $ref: '#/components/schemas/Signal' } } } }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /api/scanner/status:
-    get:
-      summary: PROPOSED - scanner status
-      operationId: getScannerStatus
-      responses:
-        '200': { description: Scanner state, content: { application/json: { schema: { $ref: '#/components/schemas/ScannerStatus' } } } }
-  /api/scanner/run:
+          description: FalkorDB graph is reachable
+  /api/updates/run:
     post:
-      summary: PROPOSED - request a scan
-      operationId: startScan
-      responses:
-        '202': { description: Scan accepted, content: { application/json: { schema: { type: object, properties: { jobId: { type: string }, status: { type: string } } } } } }
-  /api/opportunities:
-    get:
-      summary: PROPOSED - list synthesized opportunities
-      operationId: listOpportunities
-      responses:
-        '200': { description: Opportunities, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } } } } } }
-  /api/plans:
-    get:
-      summary: PROPOSED - list action plans
-      operationId: listPlans
-      responses:
-        '200': { description: Plans, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Plan' } } } } } }
-    post:
-      summary: PROPOSED - create action plan
-      operationId: createPlan
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/PlanCreate' }
-      responses:
-        '201': { description: Plan created, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } } }
-  /api/plans/{plan_id}:
-    patch:
-      summary: PROPOSED - update plan status or progress
-      operationId: updatePlan
-      parameters:
-        - in: path
-          name: plan_id
-          required: true
-          schema: { type: string }
+      operationId: runAnythingLLMUpdateReport
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [days]
               properties:
-                status: { type: string, enum: [Proposed, Under Review, Approved, In Progress, Completed] }
-                progress: { type: integer, minimum: 0, maximum: 100 }
+                days:
+                  type: integer
+                  minimum: 1
+                  maximum: 90
+                  default: 30
       responses:
-        '200': { description: Updated plan, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } } }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /api/monitoring/settings:
-    get:
-      summary: PROPOSED - get scanner preferences
-      operationId: getMonitoringSettings
-      responses:
-        '200': { description: Monitoring settings, content: { application/json: { schema: { $ref: '#/components/schemas/MonitoringSettings' } } } }
-    put:
-      summary: PROPOSED - save scanner preferences
-      operationId: updateMonitoringSettings
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/MonitoringSettings' }
-      responses:
-        '200': { description: Saved settings, content: { application/json: { schema: { $ref: '#/components/schemas/MonitoringSettings' } } } }
-components:
-  responses:
-    NotFound:
-      description: Requested record was not found
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-  schemas:
-    Error:
-      type: object
-      required: [error]
-      properties:
-        error: { type: string }
-        detail: { type: string }
-        requestId: { type: string }
-    GraphNode:
-      type: object
-      required: [id, label, type]
-      properties:
-        id: { type: string }
-        label: { type: string }
-        type: { type: string, enum: [component, package, document, concept] }
-        description: { type: string }
-        sourceRef: { type: [string, 'null'] }
-        properties: { type: object, additionalProperties: true }
-        isDemo: { type: boolean, default: false }
-    GraphEdge:
-      type: object
-      required: [source, target, relationship]
-      properties:
-        source: { type: string }
-        target: { type: string }
-        relationship: { type: string }
-        properties: { type: object, additionalProperties: true }
-    GraphData:
-      type: object
-      required: [nodes, edges]
-      properties:
-        nodes: { type: array, items: { $ref: '#/components/schemas/GraphNode' } }
-        edges: { type: array, items: { $ref: '#/components/schemas/GraphEdge' } }
-    GraphSummary:
-      type: object
-      properties:
-        nodeCount: { type: integer }
-        edgeCount: { type: integer }
-        lastIndexedAt: { type: [string, 'null'], format: date-time }
-        isDemo: { type: boolean }
-    Signal:
-      type: object
-      required: [id, title, sourceType, score, status, isDemo]
-      properties:
-        id: { type: string }
-        title: { type: string }
-        publisher: { type: string }
-        sourceType: { type: string }
-        date: { type: string, format: date }
-        discoveredAt: { type: [string, 'null'], format: date-time }
-        score: { type: integer, minimum: 0, maximum: 100 }
-        impact: { type: integer, minimum: 1, maximum: 3 }
-        tags: { type: array, items: { type: string } }
-        component: { type: string }
-        status: { type: string, enum: [new, reviewed, dismissed] }
-        saved: { type: boolean }
-        summary: { type: string }
-        longSummary: { type: string }
-        relevance: { type: string }
-        reason: { type: string }
-        confidence: { type: string }
-        sourceUrl: { type: string, format: uri }
-        evidence: { type: array, items: { type: object, additionalProperties: true } }
-        opportunity: { type: object, additionalProperties: true }
-        planSteps: { type: array, items: { type: string } }
-        isDemo: { type: boolean }
-    Opportunity:
-      type: object
-      required: [id, title]
-      properties:
-        id: { type: string }
-        title: { type: string }
-        description: { type: string }
-        priority: { type: string }
-        signalIds: { type: array, items: { type: string } }
-        expectedBenefit: { type: string }
-        effortEstimate: { type: string }
-        evidenceStrength: { type: string }
-        affectedAreas: { type: array, items: { type: string } }
-        isDemo: { type: boolean }
-    Plan:
-      type: object
-      required: [id, title, status, priority, progress, tasks]
-      properties:
-        id: { type: string }
-        title: { type: string }
-        priority: { type: string }
-        areas: { type: string }
-        status: { type: string, enum: [Proposed, Under Review, Approved, In Progress, Completed] }
-        progress: { type: integer, minimum: 0, maximum: 100 }
-        updatedAt: { type: [string, 'null'], format: date-time }
-        tasks: { type: array, items: { type: string } }
-        sourceSignalIds: { type: array, items: { type: string } }
-        isDemo: { type: boolean }
-    PlanCreate:
-      type: object
-      required: [title]
-      properties:
-        title: { type: string, minLength: 1 }
-        priority: { type: string, default: Medium }
-        areas: { type: string }
-        sourceSignalIds: { type: array, items: { type: string } }
-        tasks: { type: array, items: { type: string } }
-    ScannerStatus:
-      type: object
-      properties:
-        status: { type: string, enum: [idle, running, failed, unavailable] }
-        lastSuccessfulScan: { type: [string, 'null'], format: date-time }
-        nextScheduledScan: { type: [string, 'null'], format: date-time }
-        message: { type: string }
-    MonitoringSettings:
-      type: object
-      properties:
-        enabledSources:
-          type: array
-          items: { type: string, enum: [official, blogs, research, security, ecosystem, news] }
-        frequency: { type: string, enum: [manual, 6h, 12h, daily, weekly] }
-        relevanceThreshold: { type: integer, minimum: 0, maximum: 100 }
-        duplicateMode: { type: string, enum: [title-url, semantic, off] }
-        topics: { type: array, items: { type: string } }
+        '200':
+          description: Server-sent progress events followed by the report and search audit
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: >-
+                  Events are JSON data frames with type progress, report, or error.

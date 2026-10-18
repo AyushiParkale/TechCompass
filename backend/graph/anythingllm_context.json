@@ -1,0 +1,216 @@
+{
+  "project": {
+    "name": "AnythingLLM",
+    "repository_url": "https://github.com/Mintplex-Labs/anything-llm",
+    "official_domains": ["anythingllm.com"],
+    "description": "An open-source AI application for chatting with documents, building tool-using agents, and configuring model, embedding, and vector database providers across local and hosted deployments.",
+    "business_goal": "Make private, configurable AI assistants and document-grounded agent workflows usable without requiring users to assemble the model, document, and data infrastructure themselves.",
+    "business_goal_source": "data/source/anything-llm/README.md",
+    "objectives": [
+      {
+        "id": "document-grounded-answers",
+        "text": "Let users ingest documents and ask questions grounded in retrieved document passages.",
+        "sources": ["pages/chatting-with-documents/introduction.mdx", "pages/chatting-with-documents/rag-in-anythingllm.mdx"],
+        "capability_ids": ["document-grounded-chat"]
+      },
+      {
+        "id": "configurable-agent-workflows",
+        "text": "Let users automate multi-step tasks through tool-using agents, custom tools, MCP integrations, and visual agent flows.",
+        "sources": ["pages/agent/overview.mdx", "pages/agent-flows/overview.mdx", "pages/mcp-compatibility/overview.mdx"],
+        "capability_ids": ["tool-using-agents", "agent-workflows", "mcp-integrations"]
+      },
+      {
+        "id": "configurable-ai-infrastructure",
+        "text": "Allow users to select and combine model, embedding, and vector database providers, including local options.",
+        "sources": ["pages/features/language-models.mdx", "pages/model-router/overview.mdx", "pages/installation-docker/built-in-llm.mdx"],
+        "capability_ids": ["provider-flexibility", "dynamic-model-routing", "self-hosted-deployment"]
+      },
+      {
+        "id": "persistent-and-repeatable-assistance",
+        "text": "Support persistent memory and scheduled agent work so assistance can continue across interactions and run on a schedule.",
+        "sources": ["pages/features/memories.mdx", "pages/agent/usage/create-scheduled-job.mdx"],
+        "capability_ids": ["agent-memory", "scheduled-agent-jobs"]
+      },
+      {
+        "id": "deployable-private-workspaces",
+        "text": "Support self-hosted deployments and multi-user workspaces with access controls for private knowledge and AI workflows.",
+        "sources": ["pages/introduction.mdx", "pages/cloud/privacy-policy.mdx", "pages/features/chat-logs.mdx"],
+        "capability_ids": ["self-hosted-deployment", "multi-user-workspaces"]
+      },
+      {
+        "id": "reliable-knowledge-ingestion-and-retrieval",
+        "text": "Make user-provided and synchronized knowledge searchable through configurable ingestion, embedding, vector storage, and retrieval workflows.",
+        "sources": ["pages/chatting-with-documents/rag-in-anythingllm.mdx", "pages/features/embedding-models.mdx", "pages/features/vector-databases.mdx", "pages/beta-preview/active-features/live-document-sync.mdx"],
+        "capability_ids": ["document-ingestion-and-sync", "retrieval-quality-and-storage"]
+      },
+      {
+        "id": "multimodal-and-meeting-assistance",
+        "text": "Extend document chat and agents with audio, speech, image, and meeting workflows while supporting local processing where documented.",
+        "sources": ["pages/meeting-assistant/introduction.mdx", "pages/meeting-assistant/features.mdx", "pages/features/transcription-models.mdx", "pages/features/text-to-speech.mdx", "pages/features/image-generation.mdx"],
+        "capability_ids": ["meeting-assistant", "multimodal-media-tools"]
+      },
+      {
+        "id": "secure-and-integrable-workspaces",
+        "text": "Protect workspace data with documented access controls and expose assistant capabilities through APIs and embeddable interfaces.",
+        "sources": ["pages/features/security-and-access.mdx", "pages/features/privacy-and-data-handling.mdx", "pages/features/api.mdx", "pages/features/chat-widgets.mdx"],
+        "capability_ids": ["security-and-data-governance", "api-and-embedded-surfaces"]
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "document-grounded-chat",
+      "name": "Document-grounded chat (RAG)",
+      "description": "Processes user documents into searchable chunks, retrieves relevant passages for a workspace question, and supplies that context to an LLM.",
+      "patterns": ["Retrieval-augmented generation", "Embedding-based retrieval", "Workspace-scoped knowledge"],
+      "technologies": ["Embedding models", "Vector databases", "Large language models"],
+      "documentation": ["pages/chatting-with-documents/introduction.mdx", "pages/chatting-with-documents/rag-in-anythingllm.mdx"],
+      "implementation_paths": ["collector/processSingleFile", "collector/processRawText", "server/utils/vectorStore", "server/utils/chats"]
+    },
+    {
+      "id": "tool-using-agents",
+      "name": "Tool-using AI agents",
+      "description": "Runs LLM-driven agents that select and invoke tools to complete user tasks, with built-in and extensible tool integrations.",
+      "patterns": ["Tool calling", "Agent orchestration", "Intelligent tool selection"],
+      "technologies": ["Large language models", "Model Context Protocol"],
+      "documentation": ["pages/agent/overview.mdx", "pages/agent/intelligent-tool-selection.mdx", "pages/agent/custom/introduction.mdx"],
+      "implementation_paths": ["server/utils/agents", "server/endpoints/agentWebsocket.js", "server/endpoints/agentSkillWhitelist.js"]
+    },
+    {
+      "id": "agent-workflows",
+      "name": "Composable agent workflows",
+      "description": "Lets users compose, execute, and debug multi-step workflows from configurable blocks, including LLM instructions and API calls.",
+      "patterns": ["Workflow orchestration", "Composable task graphs", "Human-configured automation"],
+      "technologies": ["LLM workflow steps", "HTTP APIs"],
+      "documentation": ["pages/agent-flows/overview.mdx", "pages/agent-flows/getting-started.mdx", "pages/agent-flows/debugging-flows.mdx"],
+      "implementation_paths": ["server/utils/agentFlows", "server/endpoints/agentFlows.js"]
+    },
+    {
+      "id": "mcp-integrations",
+      "name": "MCP tool integrations",
+      "description": "Connects agent workflows to external tools and services through Model Context Protocol integrations.",
+      "patterns": ["Extensible tool protocol", "External service integration"],
+      "technologies": ["Model Context Protocol"],
+      "documentation": ["pages/mcp-compatibility/overview.mdx", "pages/mcp-compatibility/desktop.mdx"],
+      "implementation_paths": ["server/utils/MCP", "server/endpoints/mcpServers.js"]
+    },
+    {
+      "id": "provider-flexibility",
+      "name": "Provider abstraction for models and data stores",
+      "description": "Separates the application workflows from specific LLM, embedder, and vector database vendors so deployments can choose compatible providers.",
+      "patterns": ["Provider abstraction", "Adapter-based integrations", "Pluggable storage"],
+      "technologies": ["LLM providers", "Embedding providers", "Vector databases"],
+      "documentation": ["pages/features/language-models.mdx", "pages/features/embedding-models.mdx", "pages/features/vector-databases.mdx"],
+      "implementation_paths": ["server/utils/AiProviders", "server/utils/EmbeddingEngines", "server/utils/vectorDbProviders"]
+    },
+    {
+      "id": "dynamic-model-routing",
+      "name": "Dynamic model routing",
+      "description": "Routes conversations to configured models according to user-defined rules and request characteristics.",
+      "patterns": ["Policy-based routing", "Model selection"],
+      "technologies": ["Large language models", "LLM providers"],
+      "documentation": ["pages/model-router/overview.mdx", "pages/model-router/setup.mdx"],
+      "implementation_paths": ["server/utils/router", "server/utils/agents", "server/endpoints/modelRouter.js"]
+    },
+    {
+      "id": "agent-memory",
+      "name": "Persistent agent memory",
+      "description": "Stores and retrieves selected information across interactions to personalize later assistance.",
+      "patterns": ["Cross-session memory", "Context persistence"],
+      "technologies": ["LLM agents", "Persistent storage"],
+      "documentation": ["pages/features/memories.mdx"],
+      "implementation_paths": ["server/utils/memories", "server/endpoints/memory.js"]
+    },
+    {
+      "id": "scheduled-agent-jobs",
+      "name": "Scheduled agent jobs",
+      "description": "Runs prompts or agent-capable tasks repeatedly on a configured schedule.",
+      "patterns": ["Scheduled execution", "Background jobs"],
+      "technologies": ["Cron scheduling", "LLM agents"],
+      "documentation": ["pages/agent/usage/create-scheduled-job.mdx"],
+      "implementation_paths": ["server/endpoints/scheduledJobs.js", "server/utils/BackgroundWorkers"]
+    },
+    {
+      "id": "multi-user-workspaces",
+      "name": "Multi-user workspaces and access control",
+      "description": "Organizes knowledge and AI interactions into workspaces and applies user identity, permissions, and access controls.",
+      "patterns": ["Workspace isolation", "Role-based access control", "Multi-user application"],
+      "technologies": ["Authentication and authorization"],
+      "documentation": ["pages/introduction.mdx", "pages/cloud/privacy-policy.mdx"],
+      "implementation_paths": ["server/endpoints/workspaces.js", "server/utils/middleware", "server/utils/database"]
+    },
+    {
+      "id": "self-hosted-deployment",
+      "name": "Self-hosted and local model deployment",
+      "description": "Supports deployments where application data and selected model infrastructure can run in a user-controlled or local environment.",
+      "patterns": ["Self-hosted deployment", "Local-first model execution"],
+      "technologies": ["Docker", "Local LLM runtimes"],
+      "documentation": ["pages/introduction.mdx", "pages/installation-docker/built-in-llm.mdx"],
+      "implementation_paths": ["docker", "server/utils/AiProviders"]
+    },
+    {
+      "id": "operational-observability",
+      "name": "Operational telemetry and logging",
+      "description": "Captures application telemetry and operational logs that support diagnosis and product operation; the graph should distinguish existing telemetry from end-to-end agent tracing unless the source code confirms tracing.",
+      "patterns": ["Application telemetry", "Structured logging", "Operational diagnostics"],
+      "technologies": ["Telemetry"],
+      "documentation": ["pages/features/chat-logs.mdx"],
+      "repository_sections": [{"path": "README.md", "heading": "Telemetry & Privacy"}],
+      "implementation_paths": ["server/utils/telemetry", "server/utils/logger"]
+    },
+    {
+      "id": "document-ingestion-and-sync",
+      "name": "Document ingestion and synchronization",
+      "description": "Accepts documents and watched sources, processes content, and maintains searchable workspace knowledge as supported sources change.",
+      "patterns": ["Document processing pipeline", "Incremental synchronization", "Workspace-scoped ingestion"],
+      "technologies": ["Document parsers", "Background jobs", "Knowledge connectors"],
+      "documentation": ["pages/chatting-with-documents/introduction.mdx", "pages/beta-preview/active-features/live-document-sync.mdx"],
+      "implementation_paths": ["collector/utils", "server/utils/DocumentManager", "server/jobs/sync-watched-documents.js"]
+    },
+    {
+      "id": "retrieval-quality-and-storage",
+      "name": "Embedding, retrieval, and vector storage strategy",
+      "description": "Combines configurable embedding models, vector database adapters, and retrieval behavior to ground chat and agent responses in workspace knowledge.",
+      "patterns": ["Embedding-based retrieval", "Pluggable vector storage", "Retrieval-augmented generation"],
+      "technologies": ["Embedding models", "Vector databases", "Reranking"],
+      "documentation": ["pages/chatting-with-documents/rag-in-anythingllm.mdx", "pages/features/embedding-models.mdx", "pages/features/vector-databases.mdx"],
+      "implementation_paths": ["server/utils/vectorStore", "server/utils/EmbeddingEngines", "server/utils/EmbeddingRerankers", "server/utils/chats"]
+    },
+    {
+      "id": "meeting-assistant",
+      "name": "Local meeting capture and agentic follow-up",
+      "description": "The desktop Meeting Assistant records or imports meetings, transcribes and indexes them, supports transcript questions, and proposes tool-based follow-up actions. Official docs describe local processing and platform limitations; no matching implementation path is asserted from this server/collector checkout.",
+      "patterns": ["Local-first audio workflow", "Speaker diarization", "Human-approved agent actions"],
+      "technologies": ["Speech recognition", "Speaker identification", "LLM summarization", "Agent Skills and MCP"],
+      "documentation": ["pages/meeting-assistant/introduction.mdx", "pages/meeting-assistant/features.mdx"],
+      "implementation_paths": []
+    },
+    {
+      "id": "multimodal-media-tools",
+      "name": "Speech and image generation capabilities",
+      "description": "Provides configurable speech transcription, text-to-speech, and image-generation integrations alongside text-based model workflows.",
+      "patterns": ["Provider adapters", "Multimodal interaction"],
+      "technologies": ["Speech-to-text", "Text-to-speech", "Image generation"],
+      "documentation": ["pages/features/transcription-models.mdx", "pages/features/text-to-speech.mdx", "pages/features/image-generation.mdx"],
+      "implementation_paths": ["server/utils/SpeechToText", "server/utils/TextToSpeech", "server/utils/ImageGenerators"]
+    },
+    {
+      "id": "security-and-data-governance",
+      "name": "Workspace security and data governance",
+      "description": "Applies user and workspace access controls and documents how private data is handled across deployment and AI provider choices.",
+      "patterns": ["Workspace access control", "Data handling transparency", "Deployment-aware privacy"],
+      "technologies": ["Authentication and authorization", "User-managed model providers"],
+      "documentation": ["pages/features/security-and-access.mdx", "pages/features/privacy-and-data-handling.mdx", "pages/privacy.mdx"],
+      "implementation_paths": ["server/utils/middleware", "server/endpoints/api/auth", "server/models/workspaceUsers.js"]
+    },
+    {
+      "id": "api-and-embedded-surfaces",
+      "name": "API and embeddable assistant surfaces",
+      "description": "Makes assistant and workspace functions available through documented APIs and embeddable chat interfaces.",
+      "patterns": ["API-first integration", "Embeddable chat surface"],
+      "technologies": ["HTTP APIs", "Web integrations"],
+      "documentation": ["pages/features/api.mdx", "pages/features/chat-widgets.mdx"],
+      "implementation_paths": ["server/endpoints/api", "server/endpoints/embed", "embed"]
+    }
+  ]
+}

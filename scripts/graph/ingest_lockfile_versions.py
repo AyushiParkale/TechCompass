@@ -1,5 +1,6 @@
 
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -8,9 +9,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.api.main import connect_graph
+from backend.graph.graph_connection import connect_graph
 
-INPUT = ROOT / "data" / "index" / "resolved_versions.json"
+_index_path = Path(os.getenv(
+    "TECHCOMPASS_LOCKFILE_INDEX",
+    "data/index/resolved_versions.json",
+))
+INPUT = _index_path if _index_path.is_absolute() else ROOT / _index_path
 BATCH_SIZE = 250
 
 # Only map lockfiles whose component identities we have verified.
@@ -67,8 +72,8 @@ def main():
     print(f"Unresolved package-version dependencies: {unresolved_dependencies}")
     print(f"Skipped: {dict(skipped)}")
 
-    _, graph, node_count = connect_graph()
-    print(f"Connected to FalkorDB ({node_count} nodes).")
+    db, graph = connect_graph()
+    print("Connected to FalkorDB.")
 
     # Validate all component identities before making any changes.
     result = graph.ro_query("""
