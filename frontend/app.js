@@ -9,6 +9,16 @@ const reportContent = document.querySelector("#report-content");
 const reportPeriod = document.querySelector("#report-period");
 const auditDetails = document.querySelector("#audit-details");
 const auditContent = document.querySelector("#audit-content");
+const graphProof = document.querySelector("#graph-proof");
+const proofSummary = document.querySelector("#proof-summary");
+const proofMetrics = document.querySelector("#proof-metrics");
+const graphProofStatus = document.querySelector("#graph-proof-status");
+const actualPaths = document.querySelector("#actual-paths");
+const actualPathList = document.querySelector("#actual-path-list");
+const noActualPaths = document.querySelector("#no-actual-paths");
+const traversalDepth = document.querySelector("#traversal-depth");
+const traversalDepthValue = document.querySelector("#traversal-depth-value");
+const traversalDepthTabs = document.querySelector("#traversal-depth-tabs");
 
 function appendInlineMarkdown(parent, text) {
   const tokenPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*(.+?)\*\*|`([^`]+)`|\*([^*]+)\*/g;
@@ -233,6 +243,7 @@ function renderAudit(toolTrace = []) {
   auditContent.replaceChildren();
   const graphCheck = toolTrace.find((item) => item.tool === "get_external_project_context");
   const searchCheck = toolTrace.find((item) => item.tool === "search_web");
+  const cypherCheck = toolTrace.find((item) => item.tool === "rank_graph_impact_candidates");
   const diagnostics = graphCheck?.context_diagnostics || {};
   const args = searchCheck?.arguments || {};
   const queries = String(args.query || "").split("\n").filter(Boolean);
@@ -247,6 +258,7 @@ function renderAudit(toolTrace = []) {
     ["Graph capabilities", diagnostics.capability_count ?? "—"],
     ["Graph-derived searches", queries.length || "—"],
     ["Dated records returned", resultCount],
+    ["Cypher-ranked graph candidates", cypherCheck?.result_count ?? "Not run"],
     ["Objective impact analyses completed", impactChecks.length
       ? `${impactChecks.filter((item) => item.ok).length} / ${impactChecks.length}`
       : "Not run"],
@@ -263,6 +275,183 @@ function renderAudit(toolTrace = []) {
     list.append(term, description);
   }
   auditContent.append(list);
+}
+
+function renderGraphProof(toolTrace = [], answer = "") {
+  const graphCheck = toolTrace.find((item) => item.tool === "get_external_project_context");
+  const searchCheck = toolTrace.find((item) => item.tool === "search_web");
+  const cypherCheck = toolTrace.find((item) => item.tool === "rank_graph_impact_candidates");
+  const diagnostics = graphCheck?.context_diagnostics || {};
+  const impactChecks = toolTrace.filter((item) => item.tool === "objective_impact_analysis");
+  const completedAreas = impactChecks.filter((item) => item.ok).length;
+  const savedAssessments = impactChecks.reduce(
+    (total, item) => total + Number(item.graph_assessments_saved || 0),
+    0,
+  );
+  const queryCount = String(searchCheck?.arguments?.query || "")
+    .split("\n").filter((query) => query.trim()).length;
+
+  proofSummary.textContent = graphCheck?.ok
+    ? `FalkorDB supplied ${diagnostics.objective_count ?? 0} objectives and ${diagnostics.capability_count ?? 0} capabilities. A parameterized Cypher traversal ranked external records against objective, architecture, documentation, and implementation paths.`
+    : "The report did not confirm a successful FalkorDB context read.";
+  graphProofStatus.dataset.state = graphCheck?.ok ? "connected" : "unavailable";
+  const statusDot = document.createElement("span");
+  graphProofStatus.replaceChildren(
+    statusDot,
+    document.createTextNode(graphCheck?.ok ? "Graph context loaded" : "Graph context unavailable"),
+  );
+
+  const metrics = [
+    { value: diagnostics.objective_count ?? "—", label: "objectives read" },
+    { value: diagnostics.capability_count ?? "—", label: "capabilities mapped" },
+    { value: diagnostics.capabilities_with_docs ?? "—", label: "with document evidence" },
+    { value: diagnostics.capabilities_with_code_paths ?? "—", label: "with code paths" },
+    { value: queryCount || "—", label: "graph-derived searches" },
+    { value: cypherCheck?.result_count ?? "—", label: "Cypher-ranked graph candidates" },
+    { value: savedAssessments, label: "impact links saved to graph" },
+  ];
+  proofMetrics.replaceChildren();
+  for (const metric of metrics) {
+    const card = document.createElement("div");
+    card.className = "proof-metric";
+    const value = document.createElement("strong");
+    value.textContent = String(metric.value);
+    const label = document.createElement("span");
+    label.textContent = metric.label;
+    card.append(value, label);
+    proofMetrics.append(card);
+  }
+
+  actualPathList.replaceChildren();
+  const candidateTrace = toolTrace.find((item) => item.tool === "rank_graph_impact_candidates");
+  const traversals = (candidateTrace?.traversals || []).flatMap((traversal) =>
+    (traversal.paths || []).map((path) => ({
+      title: traversal.source_title || "External finding",
+      url: traversal.source_url || "",
+      capability: traversal.capability || "",
+      nodes: path,
+      candidate: true,
+    })),
+  );
+  const savedPathMatches = [...String(answer).matchAll(/^\*\*Graph path:\*\*\s*(.+)$/gm)].map((match) => ({
+    title: "Saved impact assessment",
+    url: "",
+    nodes: match[1].split(/\s*(?:→|->)\s*/).filter(Boolean).map((name) => ({ name, labels: [] })),
+    candidate: false,
+  }));
+  const pathItems = [...traversals, ...savedPathMatches].slice(0, 18);
+  if (pathItems.length) {
+    actualPaths.hidden = false;
+    noActualPaths.hidden = true;
+    let selectedDepth = "all";
+    const drawPaths = () => {
+      actualPathList.replaceChildren();
+      const maxHops = Number(traversalDepth?.value || 6);
+      const depthCounts = new Map();
+      for (const path of pathItems) {
+        const depth = path.nodes.length - 1;
+        if (depth > 0 && depth <= maxHops) depthCounts.set(depth, (depthCounts.get(depth) || 0) + 1);
+      }
+      const visiblePaths = pathItems
+        .filter((path) => path.nodes.length > 1 && path.nodes.length - 1 <= maxHops &&
+          (selectedDepth === "all" || path.nodes.length - 1 === selectedDepth))
+        .sort((a, b) => a.nodes.length - b.nodes.length || a.title.localeCompare(b.title));
+      if (traversalDepthTabs) {
+        traversalDepthTabs.replaceChildren();
+        const options = [["all", `All depths · ${visiblePaths.length}`],
+          ...[...depthCounts.entries()].sort(([a], [b]) => a - b).map(([depth, count]) => [depth, `Depth ${depth} · ${count}`])];
+        for (const [depth, label] of options) {
+          const tab = document.createElement("button");
+          tab.type = "button";
+          tab.className = "depth-tab";
+          tab.textContent = label;
+          tab.setAttribute("aria-pressed", String(selectedDepth === depth));
+          tab.addEventListener("click", () => { selectedDepth = depth; drawPaths(); });
+          traversalDepthTabs.append(tab);
+        }
+      }
+      for (const [index, item] of visiblePaths.entries()) {
+      const pathCard = document.createElement("div");
+      pathCard.className = "actual-path-card";
+      const number = document.createElement("span");
+      number.className = "path-index";
+      number.textContent = String(index + 1).padStart(2, "0");
+      const content = document.createElement("div");
+      content.className = "path-content";
+      const heading = document.createElement("div");
+      heading.className = "traversal-title";
+      heading.textContent = item.title;
+      const hops = document.createElement("span");
+      hops.className = "hop-count";
+      hops.textContent = `${item.nodes.length - 1} ${item.nodes.length - 1 === 1 ? "hop" : "hops"}`;
+      heading.append(hops);
+      content.append(heading);
+      const nodes = document.createElement("div");
+      nodes.className = "path-nodes";
+      item.nodes.forEach((rawNode, partIndex) => {
+        const part = typeof rawNode === "string"
+          ? rawNode
+          : rawNode.name || rawNode.title || (rawNode.labels || []).at(-1) || "Graph node";
+        const node = document.createElement("span");
+        node.className = "path-node";
+        node.textContent = part;
+        if (typeof rawNode === "object" && rawNode.labels?.length) {
+          node.title = rawNode.labels.join(" · ");
+          node.dataset.kind = rawNode.labels.at(-1);
+        }
+        nodes.append(node);
+        if (partIndex < item.nodes.length - 1) {
+          const arrow = document.createElement("span");
+          arrow.className = "path-arrow";
+          arrow.setAttribute("aria-hidden", "true");
+          arrow.textContent = "→";
+          const hop = document.createElement("small");
+          hop.className = "hop-label";
+          hop.textContent = `hop ${partIndex + 1}`;
+          const edge = document.createElement("span");
+          edge.className = "path-edge";
+          edge.append(arrow, hop);
+          nodes.append(edge);
+        }
+      });
+      content.append(nodes);
+      if (item.candidate) {
+        const note = document.createElement("p");
+        note.className = "candidate-path-note";
+        note.textContent = `Candidate match to ${item.capability}; the external finding is not yet a graph node on this path.`;
+        content.append(note);
+      }
+      pathCard.append(number, content);
+      actualPathList.append(pathCard);
+      }
+      if (!visiblePaths.length) {
+        const empty = document.createElement("p");
+        empty.className = "no-actual-paths";
+        empty.textContent = selectedDepth === "all"
+          ? `No paths within ${maxHops} hops. Increase the depth to see longer traversals.`
+          : `No paths at depth ${selectedDepth}. Choose another depth or increase the traversal limit.`;
+        actualPathList.append(empty);
+      }
+    };
+    drawPaths();
+    if (traversalDepth) {
+      traversalDepthValue.textContent = traversalDepth.value;
+      traversalDepth.oninput = () => {
+        traversalDepthValue.textContent = traversalDepth.value;
+        if (selectedDepth !== "all" && selectedDepth > Number(traversalDepth.value)) selectedDepth = "all";
+        drawPaths();
+      };
+    }
+  } else {
+    actualPaths.hidden = true;
+    noActualPaths.hidden = false;
+    noActualPaths.textContent = savedAssessments
+      ? `${savedAssessments} assessment(s) were saved, but no traversal path was included in the report text. Open Search audit to inspect this run.`
+      : completedAreas
+        ? "The graph supplied objectives and capabilities, but no impact assessment was persisted in this run. The search was graph-guided; there is no saved item-to-capability path to display."
+        : "FalkorDB context was loaded for the search. This run did not save an impact assessment, so it has no persisted external-item path to show.";
+  }
+  graphProof.hidden = false;
 }
 
 function updatePeriod(days, generatedAt) {
@@ -287,6 +476,7 @@ function handleEvent(event) {
   if (event.type === "report") {
     const report = event.report || {};
     renderMarkdown(reportContent, report.answer || "The report was empty.");
+    renderGraphProof(report.tools_used || [], report.answer || "");
     renderAudit(report.tools_used || []);
     auditDetails.hidden = false;
     reportPanel.hidden = false;
@@ -336,6 +526,7 @@ async function runUpdateCheck() {
   progressStatus.dataset.status = "running";
   progressDetail.textContent = "Starting the update check…";
   reportPanel.hidden = true;
+  graphProof.hidden = true;
   reportContent.replaceChildren();
   auditDetails.hidden = true;
   for (const item of document.querySelectorAll(".check-item")) {

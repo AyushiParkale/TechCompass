@@ -17,6 +17,7 @@ from backend.graph.external_knowledge import (
     ExternalSourceError,
     fetch_external_source_tool,
     get_external_project_context,
+    rank_external_impact_candidates,
     record_external_impact_assessment,
     search_external_knowledge,
 )
@@ -2138,85 +2139,109 @@ def _analyze_discovery_segments(
 def _graph_only_impact_leads(
     work: list[tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]],
     records: list[dict[str, Any]],
+    graph_candidates: dict[str, list[dict[str, Any]]],
 ) -> dict[int, dict[str, Any]]:
-    """Create cautious, low-confidence leads from exact graph-term overlap if Gemini is unavailable."""
-    stop_words = {
-        # Broad product/architecture vocabulary creates misleading matches
-        # (for example, "agentic workflow" -> meeting-agent capability).
-        # Fallback links should be driven by a concrete technology or feature,
-        # not by generic terms that appear across unrelated software stories.
-        "about", "agent", "agents", "agentic", "and", "api", "application",
-        "architecture", "based", "build", "capture", "data", "feature",
-        "followup", "follow-up", "follow", "for", "from", "integration", "into", "launch",
-        "local", "meeting", "model", "models", "new", "open", "platform",
-        "project", "release", "runtime", "service", "source", "support",
-        "system", "technology", "that", "the", "this", "tool", "tools",
-        "workflow", "workflows", "with",
+    """Turn strong Cypher-ranked traversals into explicit, cautious impacts."""
+    record_by_url = {
+        str(item.get("url") or ""): item for item in records if item.get("url")
     }
-
-    def terms(value: Any) -> set[str]:
-        result = set()
-        for token in re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]*", str(value or "").casefold()):
-            token = token.strip(".-")
-            if len(token) >= 4 or token in {"mcp", "rag"}:
-                normalized = token[:-1] if len(token) > 5 and token.endswith("s") else token
-                if normalized not in stop_words:
-                    result.add(normalized)
-        return result
-
     result: dict[int, dict[str, Any]] = {}
     for area_id, (segment, capabilities, _segment_records) in enumerate(work):
-        best_by_url: dict[str, tuple[int, dict[str, Any], dict[str, Any], list[str]]] = {}
-        for record in records[:30]:
-            url = str(record.get("url") or "").strip()
-            if not url:
-                continue
-            evidence_terms = terms(" ".join([
-                str(record.get("title") or ""),
-                str(record.get("summary") or ""),
-            ]))
-            best = None
-            for capability in capabilities:
-                key_terms = terms(" ".join([
-                    str(capability.get("name") or ""),
-                    " ".join(capability.get("architecture_patterns", [])),
-                    " ".join(capability.get("technologies", [])),
-                ]))
-                matched = sorted(evidence_terms & key_terms)
-                if not matched:
-                    continue
-                score = len(matched) + (2 if terms(capability.get("name")) & evidence_terms else 0)
-                if best is None or score > best[0]:
-                    best = (score, capability, matched)
-            if best and (url not in best_by_url or best[0] > best_by_url[url][0]):
-                best_by_url[url] = (best[0], record, best[1], best[2])
-
-        fallback_assessments = []
+        allowed_ids = {str(item.get("id") or "") for item in capabilities}
         area_name = str(segment.get("objective") or segment.get("capability") or "project capability")
-        for _score, record, capability, matched_terms in sorted(
-            best_by_url.values(), key=lambda item: item[0], reverse=True
-        )[:1]:
-            cap_name = str(capability.get("name") or "project capability")
-            fallback_assessments.append({
-                "url": str(record.get("url") or ""),
-                "capability_id": str(capability.get("id") or ""),
-                "relevance": "hypothesis",
-                "confidence": "low",
-                "rationale": (
-                    "Gemini was unavailable. This low-confidence lead is based only on exact shared terms "
-                    f"({', '.join(matched_terms[:5])}) between the dated source and FalkorDB capability "
-                    f"'{cap_name}' under objective '{area_name}'."
-                )[:700],
+        candidates = []
+        for url, options in graph_candidates.items():
+            record = record_by_url.get(url)
+            if not record:
+                continue
+            for candidate in options:
+                if (
+                    candidate.get("capability_id") not in allowed_ids
+                    or int(candidate.get("score", 0)) < 5
+                    or int(candidate.get("anchor_score", 0)) < 4
+                ):
+                    continue
+                objectives = candidate.get("objectives", [])
+                if objectives and area_name not in objectives:
+                    continue
+                candidates.append((candidate, record))
+        candidates.sort(key=lambda pair: int(pair[0].get("score", 0)), reverse=True)
+        assessments = []
+        seen_urls = set()
+        for candidate, record in candidates:
+            url = str(record.get("url") or "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            matches = candidate.get("matches", [])
+            match_text = ", ".join(dict.fromkeys(
+                f"{item.get('term')} ({item.get('matched_in')})"
+                for item in matches if item.get("term")
+            ))
+            objective = next(
+                (value for value in candidate.get("objectives", []) if value == area_name),
+                next(iter(candidate.get("objectives", [])), area_name),
+            )
+            capability = str(candidate.get("capability") or "project capability")
+            description = str(candidate.get("description") or capability).strip()
+            source_summary = str(record.get("summary") or record.get("title") or "The source describes a new external technology.").strip()
+            paths = [str(value) for value in candidate.get("implementation_paths", []) if value]
+            components = [
+                str(item.get("name")) for item in candidate.get("components", [])
+                if item.get("name")
+            ]
+            evidence = candidate.get("evidence", [])
+            proof_parts = []
+            if components:
+                proof_parts.append("components " + ", ".join(components[:2]))
+            if paths:
+                proof_parts.append("code paths " + ", ".join(paths[:2]))
+            if evidence:
+                evidence_label = " / ".join(
+                    str(value) for value in (evidence[0].get("title"), evidence[0].get("section"))
+                    if value
+                )
+                if evidence_label:
+                    proof_parts.append("documentation " + evidence_label)
+            graph_proof = "; linked to ".join(proof_parts) if proof_parts else "no code or document implementation link is modeled"
+            query_paths = candidate.get("graph_paths", [])
+            graph_query_path = max(query_paths, key=len) if query_paths else []
+            query_path_names = [
+                str(node.get("name") or node.get("title") or "")
+                for node in graph_query_path if isinstance(node, dict)
+            ]
+            query_path_names = [
+                name for name in query_path_names
+                if name and not re.fullmatch(r"[0-9a-f]{40,}", name)
+            ]
+            confidence = "low"
+            assessments.append({
+                "url": url,
+                "capability_id": str(candidate.get("capability_id") or ""),
+                "relevance": "adjacent" if candidate.get("objectives") and (paths or evidence or components) else "hypothesis",
+                "confidence": confidence,
+                "rationale": " ".join([
+                    f"A read-only FalkorDB Cypher traversal followed Project → ProjectCapability and the linked objective/evidence/code relationships. "
+                    f"It scored {candidate.get('score', 0)} weighted matches: {match_text or 'none'}. "
+                    f"The capability is connected to objective '{objective}' and {graph_proof}. "
+                    f"Traversed path: {' → '.join(query_path_names)}." if query_path_names else "",
+                    "This is a candidate relationship based on graph text and links, not proof of technical compatibility.",
+                ])[:700],
                 "potential_impact": (
-                    f"The external item may be worth evaluating for '{cap_name}'. The graph describes this capability as "
-                    f"'{str(capability.get('description') or cap_name)[:240]}'. Compare the external feature's actual "
-                    "interfaces and availability with the linked implementation before deciding whether it could improve this area."
+                    f"The external source describes: {source_summary[:260]} Current graph context says '{capability}' supports '{objective}'"
+                    f" ({description[:220]}). Its implementation is linked to {graph_proof}. If the external feature provides the behavior described by the source, "
+                    f"it may offer a way to improve this specific objective or implementation area; validate the API, deployment constraints, and quality impact before adopting it."
                 )[:900],
-                "next_step": "Verify the feature on its primary source, then prototype against the graph-linked code paths.",
+                "next_step": (
+                    "Compare the vendor's documented interfaces and availability with the linked project evidence, then prototype against the listed code paths and measure the objective-level outcome."
+                )[:400],
+                "graph_query_path": graph_query_path,
             })
+            if len(assessments) >= 3:
+                break
         result[area_id] = {
-            "summary": "Gemini was unavailable; these are low-confidence graph-term leads, not model-verified impact conclusions.",
-            "assessments": fallback_assessments,
+            "summary": "Graph candidate mapping used weighted Cypher traversal over objectives, capabilities, architecture, documentation, and implementation links. All rule-based mappings remain low-confidence hypotheses.",
+            "assessments": assessments,
         }
     return result
 
@@ -2394,6 +2419,50 @@ def _run_external_discovery_report(
         if segment_records or records:
             work.append((segment, graph_slice, segment_records[:4]))
 
+    report_progress(
+        "impact", "running",
+        "Running read-only Cypher traversals from each external record into AnythingLLM objectives, capabilities, and implementation evidence.",
+    )
+    try:
+        graph_candidates = rank_external_impact_candidates(graph, records)
+        graph_candidate_error = None
+    except Exception as exc:
+        logger.warning(
+            "Cypher graph impact ranking failed (%s): %s",
+            type(exc).__name__, str(exc)[:240],
+        )
+        graph_candidates = {}
+        graph_candidate_error = type(exc).__name__
+    cypher_candidate_count = sum(len(items) for items in graph_candidates.values())
+    cypher_matched_record_count = len(graph_candidates)
+    trace.append({
+        "tool": "rank_graph_impact_candidates",
+        "ok": graph_candidate_error is None,
+        "arguments": {
+            "records": min(len(records), 40),
+            "algorithm": "weighted parameterized Cypher traversal across project objectives, capabilities, architecture, evidence, source files, and components",
+        },
+        "result_count": cypher_candidate_count,
+        "matched_record_count": cypher_matched_record_count,
+        # Preserve a small, UI-friendly sample of the node paths returned by
+        # the Cypher traversal so the report can show hops instead of only a
+        # prose explanation. These are candidate links, not persisted edges.
+        "traversals": [
+            {
+                "source_title": str(record.get("title") or record.get("url") or "External finding")[:180],
+                "source_url": str(url),
+                "capability": str(candidate.get("capability") or "Capability"),
+                "score": candidate.get("score", 0),
+                "paths": candidate.get("graph_paths", [])[:4],
+            }
+            for url, candidates in graph_candidates.items()
+            for candidate in candidates[:2]
+            for record in records
+            if str(record.get("url") or "") == str(url)
+        ][:12],
+        **({"error": graph_candidate_error} if graph_candidate_error else {}),
+    })
+
     analyzed: dict[int, dict[str, Any]] = {}
     failures: dict[int, str] = {}
     gemini_completed = False
@@ -2421,11 +2490,26 @@ def _run_external_discovery_report(
                 type(exc).__name__, str(exc)[:240],
             )
             failures = {index: type(exc).__name__ for index in range(len(work))}
-            analyzed = _graph_only_impact_leads(work, records)
+            analyzed = _graph_only_impact_leads(work, records, graph_candidates)
             report_progress(
                 "impact", "running",
-                "Gemini did not finish; building cautious, low-confidence leads from exact graph term matches.",
+                "Gemini did not finish; Cypher found and ranked concrete graph paths for supported findings.",
             )
+
+    # Graph matching is also a recall backstop when Gemini completes but omits
+    # items. Only candidates with a real graph traversal and a minimum weighted
+    # score are added; unmatched records remain search evidence without a forced link.
+    cypher_fill = _graph_only_impact_leads(work, records, graph_candidates) if work else {}
+    for index, fallback in cypher_fill.items():
+        current = analyzed.setdefault(index, {"summary": "", "assessments": []})
+        existing_urls = {str(item.get("url") or "") for item in current.get("assessments", [])}
+        additions = [
+            item for item in fallback.get("assessments", [])
+            if item.get("url") and item["url"] not in existing_urls
+        ]
+        if additions and not current.get("summary"):
+            current["summary"] = "Graph traversal added candidate impacts that the model did not assess; the mappings remain hypotheses pending compatibility checks."
+        current.setdefault("assessments", []).extend(additions[:max(0, 3 - len(existing_urls))])
 
     record_by_url = {str(item.get("url") or ""): item for item in records}
     capability_by_id = {str(item.get("id") or ""): item for item in architecture}
@@ -2434,13 +2518,14 @@ def _run_external_discovery_report(
         "",
         f"Lookback: **{search.get('date_window', {}).get('from', '')} to {search.get('date_window', {}).get('through', '')}** ({days} days).",
         f"Graph context from FalkorDB: **{context_diagnostics.get('objective_count', 0)} objectives**, **{context_diagnostics.get('capability_count', 0)} capabilities**, **{context_diagnostics.get('capabilities_with_code_paths', 0)} with implementation paths**.",
+        f"Cypher impact traversal: **{cypher_candidate_count} candidate path(s)** across **{cypher_matched_record_count} source record(s)**.",
         "",
         "Impact statements below are hypotheses about how an external capability could affect the current implementation. They are linked to graph capabilities and source/code evidence; they do not claim the external technology is already adopted.",
     ]
     if failures:
         output_lines.extend([
             "",
-            "**Gemini analysis status:** unavailable for this run. The marked fallback leads use exact terms from the search records and graph capability nodes; they are low-confidence and are not Gemini-verified.",
+            "**Gemini analysis status:** unavailable for this run. The report uses the read-only Cypher ranking as a fallback, following objective-to-capability relationships and checking linked architecture, documentation, components, and code paths. These graph-scored mappings are low-confidence hypotheses, not compatibility claims.",
         ])
     assessments_saved = []
     work_by_segment_id = {id(entry[0]): index for index, entry in enumerate(work)}
@@ -2505,17 +2590,30 @@ def _run_external_discovery_report(
                 output_lines.extend([f"**What’s new:** {summary[:360]}", ""])
             assessment = assessments_by_url.get(url)
             if not assessment:
-                output_lines.append(
-                    "**Impact:** No specific project capability connection was established from the graph evidence. "
-                    "This source remains a search result, not a project-impact finding."
-                )
+                nearest = graph_candidates.get(url, [])
+                if nearest:
+                    closest = nearest[0]
+                    linked_objectives = closest.get("objectives", [])
+                    output_lines.append(
+                        f"**Graph match:** Cypher found a candidate path to **{closest.get('capability', 'unknown')}** "
+                        f"under {', '.join(linked_objectives) or 'another modeled area'}, but it does not connect to this report area ({area}). "
+                        "The finding is mapped only under its matching objective to avoid duplicate or misleading impact claims."
+                    )
+                else:
+                    output_lines.append(
+                        "**Graph match:** The Cypher traversal found no distinctive term overlap with this objective’s connected capabilities, "
+                        "architecture, evidence, or implementation paths. It remains a search lead; no project-impact claim was generated."
+                    )
                 continue
             capability = capability_by_id.get(assessment["capability_id"], {})
             output_lines.append(
                 f"**Potential impact · {assessment['relevance']} · {assessment['confidence']} confidence:** {assessment['potential_impact']}"
             )
             output_lines.extend(["", f"**Why it maps:** {assessment['rationale']}", "", f"**Next step:** {assessment['next_step']}", ""])
-            graph_path = assessment.get("saved", {}).get("path", [])
+            graph_path = (
+                assessment.get("saved", {}).get("path")
+                or assessment.get("graph_query_path", [])
+            )
             path_names = [
                 str(node.get("name") or node.get("title") or "")
                 for node in graph_path if isinstance(node, dict)
@@ -2550,6 +2648,7 @@ def _run_external_discovery_report(
             "arguments": {"objective": area},
             "result_count": len(analysis.get("assessments", [])) if analysis else 0,
             "graph_assessments_saved": sum(bool(item.get("saved")) for item in analysis.get("assessments", [])) if analysis else 0,
+            "cypher_candidate_assessments": len(cypher_fill.get(index, {}).get("assessments", [])),
             **({"fallback": "graph_term_match"} if index in failures else {}),
             **({"error": failures[index]} if index in failures else {}),
         })

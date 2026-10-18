@@ -1621,6 +1621,259 @@ def get_external_project_context(
     }
 
 
+def rank_external_impact_candidates(
+    graph: Any, records: list[dict[str, Any]], *, limit_per_report: int = 180,
+) -> dict[str, list[dict[str, Any]]]:
+    """Rank dated external records against traversable AnythingLLM graph context.
+
+    This is a bounded Cypher-backed candidate finder, not semantic proof. It
+    follows objective/capability links and inspects linked architecture,
+    technology, evidence, source files, and components in one read-only query.
+    """
+    stop_words = {
+        "about", "after", "also", "among", "another", "because", "been",
+        "being", "could", "from", "have", "into", "launch", "launched",
+        "latest", "more", "most", "new", "recent", "release", "released",
+        "technology", "their", "there", "these", "this", "those", "with",
+        "will", "would", "your", "project", "system", "platform", "tool",
+        "tools", "software", "product", "solution", "support", "feature",
+        "features", "update", "updates", "announced", "announces", "announcing",
+        "agent", "agents", "agentic", "workflow", "workflows", "application",
+        "architecture", "business", "company", "system", "tool", "tools",
+        "model", "models", "context", "protocol", "support", "supports",
+        "data", "control", "capability", "capabilities", "overview", "dynamic",
+        "language", "combine", "different", "cloud", "connect", "multiple",
+        "guide", "technical", "personal", "interaction", "action", "power",
+        "able", "about", "according", "across", "after", "again", "against",
+        "all", "any", "apis", "api", "around", "available", "base", "bases",
+        "being", "between", "both", "can", "case", "certain", "come", "company",
+        "could", "deep", "designed", "does", "each", "even", "every", "first",
+        "free", "further", "get", "google", "including", "information", "its",
+        "just", "know", "make", "many", "microsoft", "much", "must", "need",
+        "often", "only", "other", "over", "provide", "provides", "recently",
+        "require", "requires", "said", "same", "several", "some", "such", "take",
+        "than", "then", "them", "they", "thing", "things", "through", "time",
+        "today", "using", "various", "way", "ways", "where", "while", "within",
+        "without", "work", "world", "year", "years", "host", "server", "based",
+        "knowledge", "overview", "enabled", "enable", "advance", "advanced",
+        "that", "the", "then", "when", "what", "which", "who", "whom",
+        "been", "were", "was", "are", "is", "and", "but", "for", "not",
+        "managed", "manage", "endpoint", "endpoints", "infrastructure",
+        "service", "services", "offering", "offers", "offer",
+    }
+    token_pattern = re.compile(r"[a-z][a-z0-9+#.-]*", re.I)
+
+    def extract_terms(value: str) -> list[str]:
+        output = []
+        for raw in token_pattern.findall(value.casefold()):
+            term = raw.strip(".+-#").casefold()
+            if len(term) > 5 and term.endswith("s") and not term.endswith("ss"):
+                term = term[:-1]
+            if len(term) < 4 or term in stop_words or term.isdigit():
+                continue
+            if term not in output:
+                output.append(term)
+            if len(output) >= 24:
+                break
+        return output
+
+    query_items = []
+    for record in records[:40]:
+        url = str(record.get("url") or "").strip()
+        if not url:
+            continue
+        title = str(record.get("title") or "")
+        summary = str(record.get("summary") or "")[:700]
+        title_terms = extract_terms(title)
+        terms = extract_terms(f"{title} {summary}")
+        if terms:
+            query_items.append({
+                "id": str(record.get("id") or ""),
+                "url": url,
+                "title": title[:300],
+                "title_terms": title_terms,
+                "terms": terms,
+            })
+    if not query_items:
+        return {}
+
+    result = graph.ro_query(
+        """MATCH capability_path = (project:Project)-[:HAS_CAPABILITY]->(cap:ProjectCapability)
+        WHERE toLower(project.name) CONTAINS 'anythingllm'
+        OPTIONAL MATCH objective_path = (project)-[:HAS_OBJECTIVE]->
+                       (objective:ProjectObjective)-[:ADVANCES]->(cap)
+        OPTIONAL MATCH (cap)-[:USES_PATTERN]->(pattern:ArchitecturePattern)
+        OPTIONAL MATCH (cap)-[:USES_TECHNOLOGY]->(technology:Technology)
+        OPTIONAL MATCH evidence_path = (cap)-[:SUPPORTED_BY]->(evidence:Evidence)
+        OPTIONAL MATCH implementation_path = (cap)-[:IMPLEMENTED_BY]->(source_file:SourceFile)
+        OPTIONAL MATCH component_path = (cap)-[:RELATES_TO_COMPONENT]->(component:RepoComponent)
+        WITH project, cap,
+             collect(DISTINCT objective.text) AS objectives,
+             collect(DISTINCT pattern.name) AS patterns,
+             collect(DISTINCT technology.name) AS technologies,
+             collect(DISTINCT [node IN nodes(capability_path) | {
+                 labels: labels(node), id: coalesce(node.id, node.name),
+                 name: coalesce(node.name, node.title), title: node.title
+             }]) AS capability_paths,
+             collect(DISTINCT CASE WHEN objective_path IS NULL THEN null ELSE
+                 [node IN nodes(objective_path) | {
+                     labels: labels(node), id: coalesce(node.id, node.name),
+                     name: coalesce(node.name, node.title), title: node.title
+                 }] END) AS objective_paths,
+             collect(DISTINCT CASE WHEN evidence_path IS NULL THEN null ELSE
+                 [node IN nodes(evidence_path) | {
+                     labels: labels(node), id: coalesce(node.id, node.name),
+                     name: coalesce(node.name, node.title), title: node.title
+                 }] END) AS evidence_paths,
+             collect(DISTINCT CASE WHEN implementation_path IS NULL THEN null ELSE
+                 [node IN nodes(implementation_path) | {
+                     labels: labels(node), id: coalesce(node.id, node.name),
+                     name: coalesce(node.name, node.title), title: node.title
+                 }] END) AS implementation_graph_paths,
+             collect(DISTINCT {
+                 title: evidence.document_title,
+                 section: evidence.section_heading,
+                 excerpt: substring(coalesce(evidence.excerpt, ''), 0, 220),
+                 source_url: evidence.source_url,
+                 source_path: evidence.source_path
+             }) AS evidence_rows,
+             collect(DISTINCT source_file.path) AS implementation_paths,
+             collect(DISTINCT {name: component.name, path: component.path}) AS components
+        UNWIND $items AS item
+        UNWIND item.terms AS term
+        WITH item, project, cap, objectives, patterns, technologies,
+             evidence_rows, implementation_paths, components,
+             capability_paths, objective_paths, evidence_paths,
+             implementation_graph_paths, term,
+             CASE
+               WHEN toLower(coalesce(cap.name, '')) CONTAINS term THEN 5
+               WHEN any(value IN technologies WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 4
+               WHEN any(value IN patterns WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 4
+               WHEN toLower(coalesce(cap.description, '')) CONTAINS term THEN 3
+               WHEN any(value IN objectives WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 2
+               WHEN any(value IN components WHERE value.name IS NOT NULL AND toLower(value.name) CONTAINS term) THEN 2
+               WHEN any(value IN evidence_rows WHERE
+                    toLower(coalesce(value.title, '') + ' ' + coalesce(value.section, '') + ' ' +
+                            coalesce(value.excerpt, '')) CONTAINS term) THEN 1
+               WHEN any(value IN implementation_paths WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 1
+               ELSE 0
+             END AS match_weight,
+             CASE
+               WHEN toLower(coalesce(cap.name, '')) CONTAINS term THEN 'capability'
+               WHEN any(value IN technologies WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 'technology'
+               WHEN any(value IN patterns WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 'architecture pattern'
+               WHEN toLower(coalesce(cap.description, '')) CONTAINS term THEN 'capability description'
+               WHEN any(value IN objectives WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 'objective'
+               WHEN any(value IN components WHERE value.name IS NOT NULL AND toLower(value.name) CONTAINS term) THEN 'component'
+               WHEN any(value IN evidence_rows WHERE
+                    toLower(coalesce(value.title, '') + ' ' + coalesce(value.section, '') + ' ' +
+                            coalesce(value.excerpt, '')) CONTAINS term) THEN 'project evidence'
+               WHEN any(value IN implementation_paths WHERE value IS NOT NULL AND toLower(value) CONTAINS term) THEN 'implementation path'
+               ELSE 'unmatched'
+             END AS matched_in
+        WHERE match_weight > 0
+        RETURN item.id AS item_id, item.url AS url, project.name AS project,
+               cap.id AS capability_id, cap.name AS capability,
+               cap.description AS description, objectives, patterns, technologies,
+               sum(match_weight) AS score,
+               sum(CASE WHEN matched_in IN ['capability', 'technology', 'architecture pattern']
+                        THEN match_weight ELSE 0 END) AS anchor_score,
+               sum(CASE WHEN matched_in IN ['capability', 'technology', 'architecture pattern']
+                        THEN 1 ELSE 0 END) AS anchor_match_count,
+               sum(CASE WHEN term IN item.title_terms AND
+                             matched_in IN ['capability', 'technology', 'architecture pattern']
+                        THEN 1 ELSE 0 END) AS title_anchor_count,
+               max(CASE WHEN
+                   (cap.name IS NOT NULL AND toLower(coalesce(item.title, '')) CONTAINS toLower(cap.name)) OR
+                   any(value IN technologies WHERE value IS NOT NULL AND value <> '' AND toLower(coalesce(item.title, '')) CONTAINS toLower(value)) OR
+                   any(value IN patterns WHERE value IS NOT NULL AND value <> '' AND toLower(coalesce(item.title, '')) CONTAINS toLower(value))
+                   THEN 1 ELSE 0 END) AS exact_anchor_match,
+               collect(DISTINCT {term: term, matched_in: matched_in}) AS matches,
+               evidence_rows, implementation_paths, components,
+               capability_paths, objective_paths, evidence_paths,
+               implementation_graph_paths
+        ORDER BY url, score DESC
+        LIMIT $limit""",
+        {"items": query_items, "limit": max(1, min(limit_per_report, 240))},
+    )
+
+    candidates: dict[str, list[dict[str, Any]]] = {}
+    seen: set[tuple[str, str]] = set()
+    for row in result.result_set:
+        if not row or not row[1] or not row[3]:
+            continue
+        key = (str(row[1]), str(row[3]))
+        if key in seen:
+            continue
+        seen.add(key)
+        evidence_rows = [
+            item for item in (row[15] or [])
+            if item and any(item.get(field) for field in ("title", "section", "source_path", "source_url"))
+        ]
+        components = [
+            item for item in (row[17] or [])
+            if item and (item.get("name") or item.get("path"))
+        ]
+        raw_graph_paths = [
+            path_group for path_group in (row[18] or []) if path_group
+        ] + [
+            path_group for path_group in (row[19] or []) if path_group
+        ] + [
+            path_group for path_group in (row[20] or []) if path_group
+        ] + [
+            path_group for path_group in (row[21] or []) if path_group
+        ]
+        objective_path = next((
+            path for path in raw_graph_paths
+            if any("ProjectObjective" in node.get("labels", []) for node in path)
+        ), None)
+        base_path = objective_path or next((
+            path for path in raw_graph_paths
+            if path and "Project" in path[0].get("labels", [])
+            and "ProjectCapability" in path[-1].get("labels", [])
+        ), [])
+        graph_paths = [base_path] if base_path else []
+        for path in raw_graph_paths:
+            if len(path) > 1 and "ProjectCapability" in path[0].get("labels", []):
+                if base_path and path[0].get("id") == base_path[-1].get("id"):
+                    graph_paths.append(base_path + path[1:])
+                else:
+                    graph_paths.append(path)
+        candidates.setdefault(str(row[1]), []).append({
+            "item_id": str(row[0] or ""),
+            "url": str(row[1]),
+            "project": row[2],
+            "capability_id": str(row[3]),
+            "capability": row[4],
+            "description": row[5],
+            "objectives": [value for value in (row[6] or []) if value],
+            "architecture_patterns": [value for value in (row[7] or []) if value],
+            "technologies": [value for value in (row[8] or []) if value],
+            "score": int(row[9] or 0),
+            "anchor_score": int(row[10] or 0),
+            "anchor_match_count": int(row[11] or 0),
+            "title_anchor_count": int(row[12] or 0),
+            "exact_anchor_match": bool(row[13]),
+            "matches": [value for value in (row[14] or []) if value and value.get("term")],
+            "evidence": evidence_rows[:3],
+            "implementation_paths": [value for value in (row[16] or []) if value][:4],
+            "components": components[:3],
+            "graph_paths": graph_paths,
+        })
+    for url, values in list(candidates.items()):
+        values.sort(key=lambda item: item["score"], reverse=True)
+        candidates[url] = [
+            item for item in values
+            if item["score"] >= 5 and item["anchor_score"] >= 4
+            and (item["exact_anchor_match"] or (
+                item["title_anchor_count"] >= 1 and item["anchor_match_count"] >= 2
+            ))
+        ][:3]
+        if not candidates[url]:
+            candidates.pop(url)
+    return candidates
+
+
 def record_external_impact_assessment(
     graph: Any, *, item_id: str, capability_id: str, relevance: str,
     confidence: str, rationale: str, potential_impact: str, next_step: str,
@@ -1674,11 +1927,19 @@ def record_external_impact_assessment(
                                verification_status: component_link.verification_status}) AS components
         MATCH path = (project)-[:HAS_CAPABILITY]->(cap)
                       <-[:ABOUT_CAPABILITY]-(assessment)-[:ABOUT_ITEM]->(item)
+        OPTIONAL MATCH objective_path = (project)-[:HAS_OBJECTIVE]->
+                       (objective:ProjectObjective)-[:ADVANCES]->(cap)
+                       <-[:ABOUT_CAPABILITY]-(assessment)-[:ABOUT_ITEM]->(item)
         RETURN assessment.id AS id, assessment.assessed_at AS assessed_at,
+               CASE WHEN objective IS NULL THEN
                [node IN nodes(path) | {labels: labels(node),
                    id: coalesce(node.id, node.name),
                    name: coalesce(node.name, node.title), title: node.title,
-                   url: node.url}] AS path,
+                   url: node.url}]
+               ELSE [node IN nodes(objective_path) | {labels: labels(node),
+                   id: coalesce(node.id, node.name),
+                   name: coalesce(node.name, node.title), title: node.title,
+                   url: node.url}] END AS path,
                evidence, cap.name AS capability,
                cap.description AS capability_description,
                implementation_paths, components""",
