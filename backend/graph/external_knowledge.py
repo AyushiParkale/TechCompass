@@ -19,7 +19,6 @@ from typing import Any
 
 logger = logging.getLogger("techcompass.external_knowledge")
 MAX_RESPONSE_BYTES = 2_000_000
-MAX_ARTICLE_CHARS = 8_000
 USER_AGENT = "TechCompass/1.0 (+https://github.com/Shravani1383/TechCompass)"
 TRUSTED_HOSTS = {
     "api.github.com",
@@ -253,7 +252,7 @@ def _record(
         "source": source[:100],
         "title": (title or "Untitled source item")[:500],
         "url": safe_url,
-        "summary": html.unescape(summary or "")[:MAX_ARTICLE_CHARS],
+        "summary": html.unescape(summary or ""),
         "published_at": (published_at or "")[:80],
         "item_type": item_type,
         "retrieval_query": (retrieval_query or "")[:500],
@@ -1560,8 +1559,8 @@ def get_external_project_context(
             $PROJECT_FILTER
             OPTIONAL MATCH (a)-[:GROUNDED_IN]->(e:Evidence)
             RETURN a.id AS id, a.assessed_at AS assessed_at,
-                   a.relevance AS relevance, a.confidence AS confidence,
-                   a.rationale AS rationale, a.potential_impact AS potential_impact,
+                   a.relevance AS relevance, a.rationale AS rationale,
+                   a.potential_impact AS potential_impact,
                    a.next_step AS next_step, p.name AS project,
                    cap.id AS capability_id, cap.name AS capability,
                    i.title AS item_title, i.url AS item_url,
@@ -1575,12 +1574,12 @@ def get_external_project_context(
         prior_assessments = [
             {
                 "id": row[0], "assessed_at": row[1], "relevance": row[2],
-                "confidence": row[3], "rationale": row[4],
-                "potential_impact": row[5], "next_step": row[6],
-                "project": row[7], "capability_id": row[8],
-                "capability": row[9], "item_title": row[10],
-                "item_url": row[11], "item_published_at": row[12],
-                "evidence": [item for item in (row[13] or []) if item and item.get("source_url")],
+                "rationale": row[3], "potential_impact": row[4],
+                "next_step": row[5], "project": row[6],
+                "capability_id": row[7], "capability": row[8],
+                "item_title": row[9], "item_url": row[10],
+                "item_published_at": row[11],
+                "evidence": [item for item in (row[12] or []) if item and item.get("source_url")],
             }
             for row in assessment_result.result_set if row and row[0]
         ]
@@ -1683,7 +1682,7 @@ def rank_external_impact_candidates(
         if not url:
             continue
         title = str(record.get("title") or "")
-        summary = str(record.get("summary") or "")[:700]
+        summary = str(record.get("summary") or "")
         title_terms = extract_terms(title)
         terms = extract_terms(f"{title} {summary}")
         if terms:
@@ -1876,18 +1875,16 @@ def rank_external_impact_candidates(
 
 def record_external_impact_assessment(
     graph: Any, *, item_id: str, capability_id: str, relevance: str,
-    confidence: str, rationale: str, potential_impact: str, next_step: str,
+    rationale: str, potential_impact: str, next_step: str,
 ) -> dict[str, Any]:
-    """Persist a bounded, graph-validated assessment and return its evidence path."""
+    """Persist a graph-validated assessment and return its evidence path."""
     if not re.fullmatch(r"[0-9a-f]{64}", item_id):
         raise ValueError("Unknown external item id")
     if relevance not in {"direct", "adjacent", "hypothesis"}:
         raise ValueError("Relevance must be direct, adjacent, or hypothesis")
-    if confidence not in {"high", "medium", "low"}:
-        raise ValueError("Confidence must be high, medium, or low")
-    rationale = rationale.strip()[:700]
-    potential_impact = potential_impact.strip()[:900]
-    next_step = next_step.strip()[:400]
+    rationale = rationale.strip()
+    potential_impact = potential_impact.strip()
+    next_step = next_step.strip()
     if not rationale or not potential_impact or not next_step:
         raise ValueError("Assessment rationale, impact, and next step are required")
 
@@ -1899,12 +1896,12 @@ def record_external_impact_assessment(
         MATCH (item:ExternalItem {id: $item_id})
         MERGE (assessment:ImpactAssessment {id: $assessment_id})
         SET assessment.relevance = $relevance,
-            assessment.confidence = $confidence,
             assessment.rationale = $rationale,
             assessment.potential_impact = $potential_impact,
             assessment.next_step = $next_step,
             assessment.assessed_at = $assessed_at,
             assessment.assessor = 'TechCompass external-update agent'
+        REMOVE assessment.confidence
         MERGE (assessment)-[:ABOUT_ITEM]->(item)
         MERGE (assessment)-[:ABOUT_CAPABILITY]->(cap)
         MERGE (assessment)-[:ASSESSES_PROJECT]->(project)
@@ -1948,7 +1945,6 @@ def record_external_impact_assessment(
             "item_id": item_id,
             "assessment_id": assessment_id,
             "relevance": relevance,
-            "confidence": confidence,
             "rationale": rationale,
             "potential_impact": potential_impact,
             "next_step": next_step,
@@ -2344,7 +2340,7 @@ def fetch_external_source_tool(
             "retrieval_query": record.get("retrieval_query", ""),
             "retrieval_score": record.get("retrieval_score"),
             "item_type": record.get("item_type", ""),
-            "summary": summary[:240],
+            "summary": summary,
             "package": item.get("package", ""),
             "version": item.get("version", ""),
             "relevance": relevance,
@@ -2493,7 +2489,7 @@ def preview_external_knowledge(
                 "url": record.get("url", ""),
                 "published_at": record.get("published_at", ""),
                 "item_type": record.get("item_type", ""),
-                "summary": record.get("summary", "")[:500],
+                "summary": record.get("summary", ""),
                 "package": item.get("package", ""),
                 "version": item.get("version", ""),
                 "affected_range": item.get("affected_range", ""),

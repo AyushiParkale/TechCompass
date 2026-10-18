@@ -1,6 +1,6 @@
 import unittest
 
-from backend.agent.graph_agent import _validate_arguments
+from backend.agent.graph_agent import TOOLS, _validate_arguments
 from backend.graph.query_service import trace_component_dependencies
 
 
@@ -143,6 +143,31 @@ class ComponentDependencyTraceTests(unittest.TestCase):
             _validate_arguments(
                 "trace_component_dependencies",
                 {"component": "server", "depth": "4"},
+            )
+
+    def test_impact_assessment_tool_does_not_accept_confidence(self):
+        tool = next(
+            tool["function"]
+            for tool in TOOLS
+            if tool["function"]["name"] == "record_external_impact_assessment"
+        )
+        self.assertNotIn("confidence", tool["parameters"]["properties"])
+        arguments = {
+            "item_id": "a" * 64,
+            "capability_id": "retrieval",
+            "relevance": "hypothesis",
+            "rationale": "A source-backed connection.",
+            "potential_impact": "It may improve retrieval.",
+            "next_step": "Compare the documented interfaces.",
+        }
+        self.assertEqual(
+            _validate_arguments("record_external_impact_assessment", arguments),
+            arguments,
+        )
+        with self.assertRaises(ValueError):
+            _validate_arguments(
+                "record_external_impact_assessment",
+                {**arguments, "confidence": "low"},
             )
 
 

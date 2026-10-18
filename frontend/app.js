@@ -1,5 +1,6 @@
 const apiBase = window.TECHCOMPASS_API_URL;
 const runButton = document.querySelector("#run-button");
+const backToTopButton = document.querySelector("#back-to-top");
 const daysInput = document.querySelector("#lookback-days");
 const progressPanel = document.querySelector("#progress-panel");
 const progressDetail = document.querySelector("#progress-detail");
@@ -52,7 +53,11 @@ function appendInlineMarkdown(parent, text) {
 }
 
 function renderMarkdown(container, markdown) {
-  const lines = String(markdown || "").replace(/\r/g, "").split("\n");
+  const normalizedMarkdown = String(markdown || "")
+    .replace(/\*\*Potential impact\s*[·|—–-][^*:]*:\*\*/gi, "**Potential impact:**")
+    .replace(/\*\*Potential impact\s*[·|—–-][^*:]*\*\*:/gi, "**Potential impact:**")
+    .replace(/(^|\n)(\s*)Potential impact\s*[·|—–-][^:\n]*:/gi, "$1$2Potential impact:");
+  const lines = normalizedMarkdown.replace(/\r/g, "").split("\n");
   const isTableDivider = (line) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
   const cellsFrom = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
   let index = 0;
@@ -130,6 +135,13 @@ function renderMarkdown(container, markdown) {
       container.append(paragraph);
     } else {
       index += 1;
+    }
+  }
+  for (const label of container.querySelectorAll("strong")) {
+    if (/^Potential impact\s*[·|—–-]/i.test(label.textContent || "")) {
+      label.textContent = (label.textContent || "").endsWith(":")
+        ? "Potential impact:"
+        : "Potential impact";
     }
   }
   decorateReportCatalog(container);
@@ -502,7 +514,7 @@ function handleEvent(event) {
     progressDetail.textContent = searchFailure
       ? "Graph context is shown below, but no external search completed."
       : graphFallback || impactFailure
-        ? "Search completed. Gemini did not finish; the report labels low-confidence graph-matched leads separately."
+        ? "Search completed. Gemini did not finish; the report labels graph-matched investigation leads separately."
         : "The latest report is ready below.";
     reportPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -590,4 +602,8 @@ runButton.addEventListener("click", () => {
     message.textContent = error.message;
     reportContent.append(message);
   });
+});
+
+backToTopButton.addEventListener("click", () => {
+  window.scrollTo({ top: 0, behavior: "smooth" });
 });

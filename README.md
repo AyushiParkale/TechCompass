@@ -169,7 +169,7 @@ Edit the context profile when the upstream repository or docs establish a new
 capability, and retain its source paths so the graph can show why it believes
 the claim.
 
-The node/relationship model, evidence confidence rules, and ordered build
+The node/relationship model, impact-assessment guidance, and ordered build
 stages are documented in
 [`backend/graph/GRAPH_MODEL.md`](backend/graph/GRAPH_MODEL.md). The canonical
 pipeline order is defined in `scripts/graph/build.py`; the PowerShell rebuild

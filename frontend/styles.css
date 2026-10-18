@@ -163,6 +163,8 @@ button:disabled { cursor: wait; opacity: 0.68; }
 .audit-list dt { color: #7e8999; }
 .audit-list dd { margin: 0; color: #39475b; font-weight: 650; text-align: right; }
 .page-note { max-width: 710px; margin: 21px auto 0; color: #8993a2; font-size: 10px; line-height: 1.55; text-align: center; }
+.back-to-top { padding: 7px 10px; border: 1px solid #dce5eb; border-radius: 7px; color: #315b57; background: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.back-to-top:hover { border-color: #9bcfc6; color: #126f65; background: #f1faf8; }
 
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(79, 102, 232, 0.1); } }
 
