@@ -1,19 +1,12 @@
-# TechCompass — Continuous Project Intelligence Dashboard
+# TechCompass — Graph-Guided Technology Intelligence
 
-**TechCompass** is a continuous, graph-native technology intelligence dashboard designed to discover external signals (release notes, research papers, engineering blogs, advisories) and assess their relevance against a target codebase's internal architecture, dependencies, and constraints.
+**TechCompass** checks recent technology developments against a project’s goals, architecture, and dependencies. It uses a knowledge graph to guide web searches, assess potential impact, and show the source evidence and graph paths behind its findings.
 
-The primary target project for this intelligence dashboard is **AnythingLLM**. Its codebase, dependencies, architecture concepts, documentation, and operational constraints are indexed in a **FalkorDB** knowledge graph. A **FastAPI** service coupled with a **Groq-powered LLM agent** performs graph-backed analysis to generate actionable, explainable engineering recommendations.
+The current target project is **AnythingLLM**. Its objectives, capabilities, architecture concepts, documentation evidence, and dependency information are stored in **FalkorDB**. A **FastAPI** backend coordinates graph queries, web search, and impact analysis. **Tavily** is the primary search provider, with DuckDuckGo and Bing as fallbacks. **Gemini** assesses potential impact, and validated findings are saved to the graph for use in later reports.
 
+TechCompass presents findings in a browser dashboard, including source links, potential impact, recommended next steps, and the graph hops connecting each finding to project context. Some connections are candidate matches and are labeled accordingly.
 
-## Table of Contents
-1. [Product Overview](#-product-overview)
-2. [Key Architecture & Data Flow](#-key-architecture--data-flow)
-3. [Core Capabilities & Views](#-core-capabilities--views)
-4. [File Structure](#-file-structure)
-5. [API Specification & Integration Status](#-api-specification--integration-status)
-6. [Getting Started & Local Setup](#-getting-started--local-setup)
-7. [Environment Variables](#-environment-variables)
-8. [Security & Design Principles](#-security--design-principles)
+**Update checks run when requested from the dashboard.** Scheduled monitoring, a continuous signal feed, and other features should be described as planned unless they are implemented in the running application.
 
 
 ## Product Overview
@@ -30,104 +23,54 @@ TechCompass transforms how engineering teams evaluate external software changes 
 ## Key Architecture & Data Flow
 
 
-                      +-----------------------------+
-                      |   External Signal Sources   |
-                      |  (RSS, GitHub Releases,     |
-                      |   ArXiv, Engineering Blogs) |
-                      +--------------+--------------+
-                                     |
-                                     v
-                      +-----------------------------+
-                      |  TechCompass Ingestion      |
-                      |  & Auto Scanner Engine      |
-                      +--------------+--------------+
-                                     |
-                                     v
-+-----------------------+     +-----------------------------+
-| AnythingLLM Codebase  | --> | FalkorDB Knowledge Graph    |
-| (Nodes & Constraints) |     | (Entities & Relationships)  |
-+-----------------------+     +--------------+--------------+
-                                     |
-                                     v
-                      +-----------------------------+
-                      | FastAPI Backend +           |
-                      | Groq Reasoning Agent        |
-                      +--------------+--------------+
-                                     |
-                                     v
-                      +-----------------------------+
-                      | TechCompass Web App         |
-                      | (Single-Page Dashboard)     |
-                      +-----------------------------+
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/c40da0a8-f968-44d5-a78e-6b62a93de163" />
 
+## How TechCompass works
 
-### Ingestion & Analysis Workflow
-1. **Signal Discovery**: The scanner periodically checks configured technical feeds for new items.
-2. **Graph Context Retrieval**: The backend retrieves subgraphs from FalkorDB matching technologies, packages, or architectural concepts mentioned in the signal.
-3. **Groq Reasoning**: The LLM agent evaluates the signal against the project subgraph to determine relevance, potential impact, capability gaps, and recommended next actions.
-4. **Dashboard Presentation**: The findings are delivered to the frontend, categorized by urgency and impact.
+TechCompass checks recent technology developments against a project’s goals and architecture. It uses the project graph to guide web searches, assess possible impact, and show the evidence and graph paths behind its findings.
 
+### Update workflow
 
-## Core Capabilities & Views
+1. **Read project context**  
+   The agent retrieves project objectives, capabilities, architecture concepts, documentation evidence, and previous impact assessments from FalkorDB.
 
-### 1. Signal Feed (Landing Page)
-- **Compact Metric Cards**: Live tracking of newly discovered signals, high-relevance findings, opportunities awaiting review, and active implementation plans.
-- **Filterable List View**: Search and filter by relevance score, source type, topic tags, and analysis status.
-- **Quick Action Actions**: View full reports, open external sources, save items for review, dismiss irrelevant signals, or convert recommendations into action plans.
+2. **Plan searches from the graph**  
+   The agent uses project objectives and related capabilities to create search queries for the selected look-back period.
 
-### 2. Signal Analysis Detail
-- **Signal Summary**: Extracted claims and direct links to original external publications.
-- **Project Relevance**: High-level impact assessment, confidence score, and justification.
-- **Graph Evidence**: Linked nodes representing source files, internal symbols, dependencies, and architecture concepts.
-- **Opportunity Analysis**: Differentiation between existing capabilities, potential improvements, and unverified gaps.
-- **Action Recommendation**: Structured decision path (*Prototype*, *Adopt*, *Monitor*, or *Reject*) accompanied by risk analysis and test criteria.
+3. **Search and check sources**  
+   Tavily is the primary search provider. DuckDuckGo and Bing are available as fallbacks. Results are filtered by date, deduplicated, and checked for useful source information.
 
-### 3. Opportunities
-- Aggregates related individual signals into unified engineering opportunities to avoid duplicate review work.
-- Groups affected architectural components and provides unified effort estimates and priority scores.
+4. **Trace possible impact**  
+   A read-only graph traversal connects search findings to relevant capabilities, evidence, and possible code locations. The report can show the returned path and hop count for each match. Candidate paths are presented as candidates, not confirmed relationships.
 
-### 4. Architecture Explorer
-- Interactive node visualization backed directly by FalkorDB graph data.
-- Interactive filtering by node type: `Component`, `Source File`, `Symbol`, `Package`, `Document`, `Technology`, `Approach`, and `Constraint`.
-- Inspect relationship paths directly between external signals and internal codebase elements.
+5. **Assess and validate findings**  
+   Gemini assesses potential impact and recommends a next step. The backend validates source URLs and capability references against the search results and project context before saving an assessment.
 
-### 5. Action Plans
-- Track adoption blueprints across standard lifecycles: `Proposed`, `Under Review`, `Approved`, `In Progress`, and `Completed`.
-- Breaks down complex recommendations into discrete tasks, validation steps, prerequisite checks, and risk mitigations.
+6. **Save and report**  
+   Validated assessments and their evidence links are saved to FalkorDB. The report is streamed to the browser with source links, potential impact, and graph paths. Saved assessments can provide context for later runs.
 
-### 6. Sources & Monitoring
-- Admin configuration view to manage feed sources (Engineering Blogs, Release Notes, Research Papers, Advisories).
-- Controls for scan frequencies, relevance thresholds, topic filters, and source status toggles.
+### Dashboard
 
+The update report is grouped by project objective. Depending on the available search results and graph data, a finding can include:
 
-## 🔌 API Specification & Integration Status
+- External source and publication date
+- Summary of what is new
+- Potential impact on the project
+- Recommended next step
+- Supporting graph path and evidence
+- Search and graph traversal details
 
-TechCompass maintains a strict distinction between **live connected endpoints** and **proposed endpoints** currently utilizing demo adapters (`isDemo: true`).
+Graph paths show which nodes and relationships the traversal returned, including the number of hops. Some links represent candidate matches and should be treated accordingly.
 
-### Active Verified Endpoints (`isDemo: false`)
+### Graph and dependency views
 
-| Method | Route | Description |
-| :--- | :--- | :--- |
-| `GET` | `/health/ready` | Verifies connection readiness to FastAPI and database services |
-| `GET` | `/api/graph/summary` | Returns graph metadata, node counts, and relationship metrics |
-| `GET` | `/api/graph/project` | Fetches core project architecture hierarchy for AnythingLLM |
-| `GET` | `/api/graph/architecture?q={query}` | Searches architectural elements matching a query term |
-| `GET` | `/api/graph/dependencies?component={id}`| Returns dependency subgraphs for a specific component |
-| `GET` | `/api/graph/package-usage?package={pkg}`| Identifies files and modules consuming a specified package |
-| `GET` | `/api/graph/package-impact?package={pkg}`| Computes impact analysis for upgrading or replacing a package |
-| `POST`| `/api/agent/ask` | Queries the Groq LLM agent with graph context |
+TechCompass also provides graph and dependency queries for exploring project context stored in FalkorDB. The available information depends on which project data has been ingested, such as architecture concepts, components, packages, documentation, and source files.
 
-### Proposed Endpoints (`isDemo: true` Fixtures)
+### API
 
-The following endpoints are specified in `api-contract.yaml` and provide temporary local persistence until implemented in FastAPI:
+The FastAPI backend provides readiness checks, graph and dependency queries, and graph-backed agent workflows. The update workflow is available through `POST /api/updates/run`; progress and results are streamed to the browser using server-sent events.
 
-- `GET /api/signals` — Fetch signal list with filter parameters.
-- `GET /api/signals/{id}` — Fetch detailed report for a single signal.
-- `GET /api/opportunities` — Fetch aggregated opportunities.
-- `GET /api/plans` — List implementation plans.
-- `POST /api/plans` — Create or update an implementation plan.
-- `GET /api/sources` — Fetch scanner source status and parameters.
-
+> **Implementation note:** A route listed in `api-contract.yaml` is not necessarily implemented by the backend. Features such as scheduled feed monitoring, a persistent signal feed, opportunity aggregation, and action-plan management should be documented as planned until they are available in the running application.
 
 ## 🚀 Getting Started & Local Setup
 
@@ -177,17 +120,17 @@ HOST=0.0.0.0
 CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
 
 # Graph Database Connection
-FALKORDB_HOST=localhost
-FALKORDB_PORT=6379
-FALKORDB_GRAPH_NAME=anything_llm
+FALKORDB_HOST=r-6jissuruar.instance-pnn3pjksr.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud
+FALKORDB_USERNAME=falkordb
+FALKORDB_PORT=52327
+FALKORDB_GRAPH=anythingllm-context-v2-20261018-132947
 
-# Groq LLM API Configuration
-GROQ_API_KEY=gsk_your_groq_api_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
+# Gemini API Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
 
 
 ## 🛡 Security & Design Principles
 
-1. **Credential Safety**: All LLM keys (Groq) and graph database credentials remain strictly encapsulated within the FastAPI backend layer.
+1. **Credential Safety**: All LLM keys (Gemini) and graph database credentials remain strictly encapsulated within the FastAPI backend layer.
 2. **Honest Data Presentation**: Frontend metric cards and connection badges dynamically reflect real backend responses. Mock items are explicitly tagged with `isDemo: true`.
 3. **Non-Destructive Workflow**: Action plans generated by TechCompass represent execution proposals only. Creating or updating a plan will **never** automatically alter codebases, open pull requests, or trigger infrastructure deployments.
