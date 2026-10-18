@@ -114,19 +114,21 @@ The FastAPI backend provides readiness checks, graph and dependency queries, and
 For backend setup, ensure the following environment keys are populated in your `.env` file. **Never expose these keys to the frontend browser application.**
 
 
+```bash
 # Server Configuration
-PORT=8000
-HOST=0.0.0.0
-CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+export PORT=8000
+export HOST=0.0.0.0
+export CORS_ORIGINS="http://localhost:8000,http://127.0.0.1:8000"
 
 # Graph Database Connection
-FALKORDB_HOST=r-6jissuruar.instance-pnn3pjksr.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud
-FALKORDB_USERNAME=falkordb
-FALKORDB_PORT=52327
-FALKORDB_GRAPH=anythingllm-context-v2-20261018-132947
+export FALKORDB_HOST="r-6jissuruar.instance-pnn3pjksr.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud"
+export FALKORDB_USERNAME="falkordb"
+export FALKORDB_PORT=52327
+export FALKORDB_GRAPH="anythingllm-context-v2-20261018-132947"
 
 # Gemini API Configuration
-GEMINI_API_KEY=your_gemini_api_key_here
+export GEMINI_API_KEY="your_gemini_api_key_here"
+```
 
 
 ## 🛡 Security & Design Principles
