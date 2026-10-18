@@ -1,12 +1,12 @@
-# TechCompass — Graph-Guided Technology Intelligence
+# TechCompass — Real-Time Technology Updates for Your Project
 
-**TechCompass** checks recent technology developments against a project’s goals, architecture, and dependencies. It uses a knowledge graph to guide web searches, assess potential impact, and show the source evidence and graph paths behind its findings.
+**TechCompass** finds recent technology updates that could affect a project. It searches for new releases, research papers, engineering announcements, and advisories, then checks them against the project’s goals, architecture, and dependencies. Instead of presenting headlines alone, TechCompass explains why an update may matter and shows the graph paths connecting it to the project.
 
-The current target project is **AnythingLLM**. Its objectives, capabilities, architecture concepts, documentation evidence, and dependency information are stored in **FalkorDB**. A **FastAPI** backend coordinates graph queries, web search, and impact analysis. **Tavily** is the primary search provider, with DuckDuckGo and Bing as fallbacks. **Gemini** assesses potential impact, and validated findings are saved to the graph for use in later reports.
+The current target project is **AnythingLLM**. Its objectives, capabilities, architecture concepts, documentation evidence, and dependency information are stored in a **FalkorDB** knowledge graph. A **FastAPI** backend uses this graph to guide web searches. **Tavily** is the primary search provider, with DuckDuckGo and Bing as fallbacks. **Gemini** assesses potential impact, and validated findings are saved to the graph for future reports.
 
-TechCompass presents findings in a browser dashboard, including source links, potential impact, recommended next steps, and the graph hops connecting each finding to project context. Some connections are candidate matches and are labeled accordingly.
+The browser dashboard presents findings with source links, potential impact, recommended next steps, and the graph hops behind each match. Candidate connections are labeled so they are not mistaken for confirmed relationships.
 
-**Update checks run when requested from the dashboard.** Scheduled monitoring, a continuous signal feed, and other features should be described as planned unless they are implemented in the running application.
+Update checks currently run when requested from the dashboard. Background scheduled monitoring is not part of the current workflow.
 
 
 ## Product Overview
