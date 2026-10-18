@@ -1,283 +1,193 @@
-# TechCompass
+# TechCompass — Continuous Project Intelligence Dashboard
 
-TechCompass creates graph-backed technology update reports for AnythingLLM.
-A FastAPI service queries FalkorDB, searches current external sources, and uses
-Gemini to explain how findings may relate to project goals and architecture.
-The web page streams the checks in progress and renders the completed report.
+**TechCompass** is a continuous, graph-native technology intelligence dashboard designed to discover external signals (release notes, research papers, engineering blogs, advisories) and assess their relevance against a target codebase's internal architecture, dependencies, and constraints.
 
-The graph contains project components and dependencies, source-file and symbol
-index data, documentation sections, documentation-backed architecture
-evidence, and manually synced external articles and vulnerability advisories.
-The web app includes a dependency path visualization, source search, manual
-article intake, and an on-demand sync action. The app has no authentication;
-keep it on localhost or put it behind a trusted network boundary.
+The primary target project for this intelligence dashboard is **AnythingLLM**. Its codebase, dependencies, architecture concepts, documentation, and operational constraints are indexed in a **FalkorDB** knowledge graph. A **FastAPI** service coupled with a **Groq-powered LLM agent** performs graph-backed analysis to generate actionable, explainable engineering recommendations.
 
-TechCompass's own purpose and discovery objectives are stored separately from
-the analyzed AnythingLLM `Project` node. Review or edit
-`backend/graph/project_profile.json`, then ingest the profile into the selected
-FalkorDB graph with:
 
-```powershell
-python -m scripts.graph.ingest_project_profile
-```
+## Table of Contents
+1. [Product Overview](#-product-overview)
+2. [Key Architecture & Data Flow](#-key-architecture--data-flow)
+3. [Core Capabilities & Views](#-core-capabilities--views)
+4. [File Structure](#-file-structure)
+5. [API Specification & Integration Status](#-api-specification--integration-status)
+6. [Getting Started & Local Setup](#-getting-started--local-setup)
+7. [Environment Variables](#-environment-variables)
+8. [Security & Design Principles](#-security--design-principles)
 
-The agent uses that profile to reason about why external items matter to
-TechCompass, while dependency, import, and documentation evidence describes
-impact on the analyzed repository. The profile is a maintainer brief; update it
-when the product goals change.
 
-## Run an update report
+## Product Overview
 
-### Requirements
+TechCompass transforms how engineering teams evaluate external software changes and technological advancements. Instead of manually copying and pasting articles into generic chatbot interfaces, TechCompass continuously ingests ecosystem signals, correlates them with a deep knowledge graph of your project, and produces structured recommendations.
 
-- Python 3.10 or newer and `pip`
-- Node.js 18 or newer (only needed to build the static frontend)
-- A reachable **deployed FalkorDB instance** containing a TechCompass graph
-- A Gemini API key
+### Key Value Drivers
+- **Automated Discovery**: Sources are monitored automatically for relevant updates.
+- **Graph-Backed Reasoning**: Recommendations are grounded in actual codebase components, dependencies, and documented constraints—not hallucinated assertions.
+- **Explainable Assessments**: Every signal includes specific supporting graph evidence, identified capability gaps, and concrete adoption steps.
+- **Non-Destructive Action Plans**: Structured blueprints help teams evaluate, prototype, and adopt technologies safely.
 
-The repository intentionally excludes `.env`, the downloaded AnythingLLM
-source and docs, and generated index data. A fresh clone can connect to an
-already-populated FalkorDB graph; it does not include the source corpus needed
-to rebuild that graph.
 
-### 1. Configure the backend
+## Key Architecture & Data Flow
 
-From the project root in PowerShell:
 
-```powershell
-cd D:\Hackathon\TechCompass
-Copy-Item .env.example .env
-```
+                      +-----------------------------+
+                      |   External Signal Sources   |
+                      |  (RSS, GitHub Releases,     |
+                      |   ArXiv, Engineering Blogs) |
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      |  TechCompass Ingestion      |
+                      |  & Auto Scanner Engine      |
+                      +--------------+--------------+
+                                     |
+                                     v
++-----------------------+     +-----------------------------+
+| AnythingLLM Codebase  | --> | FalkorDB Knowledge Graph    |
+| (Nodes & Constraints) |     | (Entities & Relationships)  |
++-----------------------+     +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      | FastAPI Backend +           |
+                      | Groq Reasoning Agent        |
+                      +--------------+--------------+
+                                     |
+                                     v
+                      +-----------------------------+
+                      | TechCompass Web App         |
+                      | (Single-Page Dashboard)     |
+                      +-----------------------------+
 
-Edit `.env` and set the FalkorDB Cloud endpoint, port, username, password,
-graph name, and Gemini API key. Set `FALKORDB_TLS` to match the instance
-configuration. For a public deployment, enable TLS on FalkorDB and set this to
-`true`; do not send database credentials over an unencrypted connection. The
-default model is `gemini-3.8-flash`; set `GEMINI_MODEL` to another model
-available to your API key if needed.
 
-Do not commit `.env`, paste secret values into chat, or put database/Gemini
-credentials in frontend variables. `.env.example` contains placeholders only.
+### Ingestion & Analysis Workflow
+1. **Signal Discovery**: The scanner periodically checks configured technical feeds for new items.
+2. **Graph Context Retrieval**: The backend retrieves subgraphs from FalkorDB matching technologies, packages, or architectural concepts mentioned in the signal.
+3. **Groq Reasoning**: The LLM agent evaluates the signal against the project subgraph to determine relevance, potential impact, capability gaps, and recommended next actions.
+4. **Dashboard Presentation**: The findings are delivered to the frontend, categorized by urgency and impact.
 
-Create an environment and install the API dependencies:
 
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-api.txt
-```
+## Core Capabilities & Views
 
-Start the API:
+### 1. Signal Feed (Landing Page)
+- **Compact Metric Cards**: Live tracking of newly discovered signals, high-relevance findings, opportunities awaiting review, and active implementation plans.
+- **Filterable List View**: Search and filter by relevance score, source type, topic tags, and analysis status.
+- **Quick Action Actions**: View full reports, open external sources, save items for review, dismiss irrelevant signals, or convert recommendations into action plans.
 
-```powershell
-python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --reload
-```
+### 2. Signal Analysis Detail
+- **Signal Summary**: Extracted claims and direct links to original external publications.
+- **Project Relevance**: High-level impact assessment, confidence score, and justification.
+- **Graph Evidence**: Linked nodes representing source files, internal symbols, dependencies, and architecture concepts.
+- **Opportunity Analysis**: Differentiation between existing capabilities, potential improvements, and unverified gaps.
+- **Action Recommendation**: Structured decision path (*Prototype*, *Adopt*, *Monitor*, or *Reject*) accompanied by risk analysis and test criteria.
 
-The API loads `.env` from the project root. Check that the graph connection
-worked at <http://127.0.0.1:8000/health/ready>; a successful response includes
-`"status": "ready"` and the node count. The liveness endpoint is
-<http://127.0.0.1:8000/health/live>.
+### 3. Opportunities
+- Aggregates related individual signals into unified engineering opportunities to avoid duplicate review work.
+- Groups affected architectural components and provides unified effort estimates and priority scores.
 
-### 2. Build and open the report UI
+### 4. Architecture Explorer
+- Interactive node visualization backed directly by FalkorDB graph data.
+- Interactive filtering by node type: `Component`, `Source File`, `Symbol`, `Package`, `Document`, `Technology`, `Approach`, and `Constraint`.
+- Inspect relationship paths directly between external signals and internal codebase elements.
 
-In a second PowerShell terminal, from the project root:
+### 5. Action Plans
+- Track adoption blueprints across standard lifecycles: `Proposed`, `Under Review`, `Approved`, `In Progress`, and `Completed`.
+- Breaks down complex recommendations into discrete tasks, validation steps, prerequisite checks, and risk mitigations.
 
-```powershell
-$env:TECHCOMPASS_API_URL = "http://127.0.0.1:8000"
-Set-Location frontend
-npm run build
-python -m http.server 5173 --bind 127.0.0.1 --directory dist
-```
+### 6. Sources & Monitoring
+- Admin configuration view to manage feed sources (Engineering Blogs, Release Notes, Research Papers, Advisories).
+- Controls for scan frequencies, relevance thresholds, topic filters, and source status toggles.
 
-Open <http://127.0.0.1:5173>, choose a lookback window from 1 to 90 days, and
-select **Check for updates**. The page streams graph loading, search planning,
-source checks, graph impact mapping, and report generation. The report groups
-findings by project objectives and includes external links and graph evidence.
 
-Stop the API and static server with `Ctrl+C` in their respective terminals.
+## 🔌 API Specification & Integration Status
 
-## Test the backend and API
+TechCompass maintains a strict distinction between **live connected endpoints** and **proposed endpoints** currently utilizing demo adapters (`isDemo: true`).
 
-Install the full dependencies if you want to run the test suite:
-
-```powershell
-python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
-```
-
-With the API running, check readiness:
-
-```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/health/ready"
-```
-
-## Available API routes
-
-The backend exposes health checks and a streaming update-report endpoint.
+### Active Verified Endpoints (`isDemo: false`)
 
 | Method | Route | Description |
-| --- | --- | --- |
-| `GET` | `/health/live` | Process liveness |
-| `GET` | `/health/ready` | FalkorDB readiness and node count |
-| `POST` | `/api/updates/run` | Run the fixed AnythingLLM update job with a 1–90 day lookback |
+| :--- | :--- | :--- |
+| `GET` | `/health/ready` | Verifies connection readiness to FastAPI and database services |
+| `GET` | `/api/graph/summary` | Returns graph metadata, node counts, and relationship metrics |
+| `GET` | `/api/graph/project` | Fetches core project architecture hierarchy for AnythingLLM |
+| `GET` | `/api/graph/architecture?q={query}` | Searches architectural elements matching a query term |
+| `GET` | `/api/graph/dependencies?component={id}`| Returns dependency subgraphs for a specific component |
+| `GET` | `/api/graph/package-usage?package={pkg}`| Identifies files and modules consuming a specified package |
+| `GET` | `/api/graph/package-impact?package={pkg}`| Computes impact analysis for upgrading or replacing a package |
+| `POST`| `/api/agent/ask` | Queries the Groq LLM agent with graph context |
 
-Send a JSON request and read the server-sent event stream:
+### Proposed Endpoints (`isDemo: true` Fixtures)
 
-```json
-{"days":30}
-```
+The following endpoints are specified in `api-contract.yaml` and provide temporary local persistence until implemented in FastAPI:
 
-The stream includes progress events while checks run, then a report event with
-the Markdown report and a `tools_used` search audit.
+- `GET /api/signals` — Fetch signal list with filter parameters.
+- `GET /api/signals/{id}` — Fetch detailed report for a single signal.
+- `GET /api/opportunities` — Fetch aggregated opportunities.
+- `GET /api/plans` — List implementation plans.
+- `POST /api/plans` — Create or update an implementation plan.
+- `GET /api/sources` — Fetch scanner source status and parameters.
 
-### External discovery
 
-The agent derives its web searches from the analyzed project's graph context,
-then searches with Tavily and falls back to DuckDuckGo or Bing via DDGS if
-Tavily fails or returns no dated matches. It verifies launch dates against
-official sources, explains relevance and potential project impact separately,
-and keeps source links in the response. Security tools for OSV, GitHub
-Advisories, and NVD remain available for explicit security questions.
+## 🚀 Getting Started & Local Setup
 
-Backend search configuration is server-side:
+### Frontend Setup
 
-```text
-TAVILY_API_KEY=your-server-side-tavily-key
-GITHUB_TOKEN=your-optional-github-token
-NVD_API_KEY=your-server-side-nvd-key
-```
+1. **Clone or Download** the project files into a single workspace directory:
+   bash
+   git clone https://github.com/your-org/techcompass.git
+   cd techcompass
+   
 
-Keep keys in the backend environment, never in frontend configuration. The
-graph-aware web search requires a Tavily API key. Public GitHub requests
-use the unauthenticated rate limit when no token is configured.
+2. **Serve the Static Application**:
+   Since TechCompass uses standard Web standards, you can serve it with any HTTP server:
 
-## Building the AnythingLLM context graph
+   *Using Python:*
+   bash
+   python3 -m http.server 8000
+   
 
-The context graph is designed for discovery and impact analysis across goals,
-capabilities, workflows, architecture patterns, technologies, components,
-code, and cited documentation. Package nodes remain available for exact
-dependency and security checks, but they are supporting evidence rather than
-the default way to discover technology updates.
+   *Using Node.js:*
+   bash
+   npx serve .
+   
 
-The reviewed project context lives in
-[`backend/graph/anythingllm_context.json`](backend/graph/anythingllm_context.json).
-It is grounded in the checked-out AnythingLLM README and official docs. The
-ingester links goals and capabilities to documentation evidence and candidate
-source files. Code-file links are explicitly marked as candidate mappings; a
-directory match does not prove that every linked file implements the capability.
-Edit the context profile when the upstream repository or docs establish a new
-capability, and retain its source paths so the graph can show why it believes
-the claim.
+3. **Access the Application**:
+   Open `http://localhost:8000` in your browser.
 
-The node/relationship model, evidence confidence rules, and ordered build
-stages are documented in
-[`backend/graph/GRAPH_MODEL.md`](backend/graph/GRAPH_MODEL.md). The canonical
-pipeline order is defined in `scripts/graph/build.py`; the PowerShell rebuild
-script handles graph isolation and delegates the ordered stages to that runner.
+### Backend Setup (FastAPI + FalkorDB)
 
-The reviewed AnythingLLM map currently spans eight objectives and seventeen
-capabilities, including document ingestion and sync, retrieval and vector
-storage, agents and MCP, model routing, local deployment, memory, meeting and
-media workflows, access controls, APIs, and operational telemetry. External
-discovery reserves a search for each objective before adding extra query angles,
-balances results across those searches, and reports result counts by query and
-project area. It corroborates leading candidates with follow-up searches and
-filters AnythingLLM's own domains and repository from external findings. The
-search window filters publication dates; a launch is called confirmed only
-when an official source establishes its release or availability date.
+1. **Start FalkorDB Instance**:
+   bash
+   docker run -p 6379:6379 -it --rm falkordb/falkordb
+   
 
-Optional manual connectivity checks live in `scripts/` and are not part of the
-application startup:
+2. **Launch FastAPI Backend**:
+   Ensure your backend application is configured to listen on port `8000` or configure the frontend API base URL accordingly.
 
-```powershell
-.\.venv\Scripts\python.exe scripts\check_falkordb.py
-.\.venv\Scripts\python.exe scripts\check_gemini.py
-```
 
-To refresh the reviewed context in the currently configured graph without
-rebuilding repository indexes, run:
+## 🔑 Environment Variables
 
-```powershell
-.\.venv\Scripts\python.exe -m scripts.graph.ingest_project_context
-```
+For backend setup, ensure the following environment keys are populated in your `.env` file. **Never expose these keys to the frontend browser application.**
 
-### One-command setup from a fresh TechCompass checkout
+env
+# Server Configuration
+PORT=8000
+HOST=0.0.0.0
+CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
 
-Configure `.env` first with reachable FalkorDB credentials and graph settings.
-From the TechCompass root, run:
+# Graph Database Connection
+FALKORDB_HOST=localhost
+FALKORDB_PORT=6379
+FALKORDB_GRAPH_NAME=anything_llm
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\graph\setup_graph.ps1
-```
+# Groq LLM API Configuration
+GROQ_API_KEY=gsk_your_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
 
-The script creates `.venv` if needed and ensures `requirements.txt` is
-installed, then clones the analyzed source and its official docs into
-`data/source/anything-llm/` and `data/source/anythingllm-docs/`. Existing Git
-checkouts at those paths are reused without pulling or overwriting local work;
-non-Git folders and mismatched remotes cause a clear stop. It then runs the
-full clean graph build and, only after success, points `FALKORDB_GRAPH` in
-`.env` at the new graph. Restart the API and verify `/health/ready` afterward.
 
-To build a new graph while leaving the graph configured in `.env` untouched,
-add `-KeepCurrentGraph` to the command. The new graph name is printed during
-the run and can be activated later by setting `FALKORDB_GRAPH` in `.env`.
+## 🛡 Security & Design Principles
 
-Graph ingestion scripts are maintainer workflows, not part of report startup.
-They require the AnythingLLM repository and docs under `data/source/`, plus
-FalkorDB connection settings in `.env`. The complete rebuild uses a new,
-timestamped graph name by default and writes extraction indexes under a
-graph-specific directory. It refuses to use the graph currently configured in
-`.env`, preserving the existing graph and index files for comparison/rollback.
-
-From the project root, run:
-
-```powershell
-.\scripts\graph\rebuild_context_graph.ps1
-```
-
-To pick a graph name explicitly:
-
-```powershell
-.\scripts\graph\rebuild_context_graph.ps1 -GraphName anythingllm-context-v2-demo
-```
-
-The script ingests repository structure, manifests, docs, symbols, resolved
-imports, reviewed project context, candidate doc/code links, and lockfile
-versions. It also ingests TechCompass's own product profile separately from
-the analyzed AnythingLLM project. The API continues using the graph in `.env`
-until you deliberately set `FALKORDB_GRAPH` to the new graph and restart it.
-After the rebuild, validate `/health/ready` and run an update report to confirm
-the new context is available.
-
-## Deployment
-
-The recommended hosting split is a static frontend on Vercel, the persistent
-FastAPI service on Render, and FalkorDB Cloud for the graph. Follow
-[`DEPLOYMENT.md`](DEPLOYMENT.md) for Render/Vercel environment variables,
-deployment steps, and production checks. Production should use HTTPS for both
-the browser/API and API/FalkorDB connections.
-
-## Security notes
-
-- **There is no app authentication.** Anyone who can reach the API can read
-  graph data and invoke the agent, including its external search tools.
-  Keep the API on localhost or restrict access using a private network or
-  trusted gateway before exposing it beyond your machine.
-- Keep `.env`, FalkorDB credentials, and Gemini keys out of Git and out of Vercel
-  frontend configuration.
-- `.env` and `data/` are ignored by `.gitignore`; `.env.example` is safe
-  placeholder configuration.
-- The managed FalkorDB free instance has backups/HA disabled according to the
-  setup notes; arrange backups before treating it as the sole graph copy.
-
-## Project layout
-
-```text
-backend/
-  agent/       Gemini graph-tool agent
-  api/         Public FastAPI routes
-  graph/       FalkorDB runtime access, reviewed profiles, and graph model docs
-frontend/      Static update-report UI and Vercel configuration
-scripts/graph/ Graph creation and ingestion pipeline
-tests/         API access and graph behavior tests
-```
+1. **Credential Safety**: All LLM keys (Groq) and graph database credentials remain strictly encapsulated within the FastAPI backend layer.
+2. **Honest Data Presentation**: Frontend metric cards and connection badges dynamically reflect real backend responses. Mock items are explicitly tagged with `isDemo: true`.
+3. **Non-Destructive Workflow**: Action plans generated by TechCompass represent execution proposals only. Creating or updating a plan will **never** automatically alter codebases, open pull requests, or trigger infrastructure deployments.
