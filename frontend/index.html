@@ -1,226 +1,204 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="TechCompass — project-aware technology signal intelligence dashboard prototype">
-<title>TechCompass — Signal Intelligence</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<div class="app">
-  <aside class="sidebar" id="sidebar">
-    <div class="brand"><div class="brand-mark">T</div><div><div class="brand-name">TechCompass</div><div class="brand-sub">Project intelligence</div></div></div>
-    <div class="project-switch"><div class="project-icon">A</div><div><div class="project-label">Active project</div><div class="project-name">AnythingLLM</div></div><span class="chevron">⌄</span></div>
-    <div class="nav-label">Workspace</div>
-    <nav class="nav" aria-label="Main navigation">
-      <button class="active" data-page="feed"><span class="ico">◈</span>Signal Feed <span class="count" id="navNewCount">4</span></button>
-      <button data-page="opportunities"><span class="ico">✧</span>Opportunities <span class="count">3</span></button>
-      <button data-page="architecture"><span class="ico">⌘</span>Architecture Explorer</button>
-      <button data-page="plans"><span class="ico">☷</span>Action Plans <span class="count" id="navPlanCount">2</span></button>
-      <button data-page="sources"><span class="ico">◉</span>Sources & Monitoring</button>
-      <button data-page="settings"><span class="ico">⚙</span>Project Settings</button>
-    </nav>
-    <div class="sidebar-bottom">
-      <div class="system-card"><div class="system-top"><span class="dot warn" id="sideDot"></span><span id="sideStatus">Demo mode</span></div><p id="sideStatusText">Frontend fixtures loaded. Backend not connected.</p></div>
-      <div class="profile"><div class="avatar">AP</div><div><div class="profile-name">Workspace member</div><div class="profile-role">Project analyst</div></div></div>
-    </div>
-  </aside>
-  <main class="main">
-    <header class="topbar">
-      <div style="display:flex;align-items:center;gap:12px"><button class="icon-btn mobile-menu" id="menuBtn" aria-label="Open navigation">☰</button><div class="crumb">Workspace <span style="color:#c3cad5">/</span> <strong id="breadcrumb">Signal Feed</strong></div></div>
-      <div class="top-actions"><div class="connection"><span class="dot warn" id="headerDot"></span><span id="connectionLabel">API not connected</span></div><button class="icon-btn" id="notificationBtn" title="Notifications">♧<span class="notify"></span></button><div class="avatar">AP</div></div>
-    </header>
-    <div class="content">
-      <!-- SIGNAL FEED -->
-      <section class="page active" id="page-feed">
-        <div class="page-heading"><div><div class="eyebrow">Project intelligence / Overview</div><h1>Signal Feed</h1><p class="subtitle">External technology developments, connected to what matters inside AnythingLLM.</p></div><div class="heading-actions"><button class="btn" id="refreshBtn">↻ Refresh data</button><button class="btn primary" id="scanBtn">◎ Check scanner status</button></div></div>
-        <div class="status-line"><span><i class="dot warn"></i><strong>Scanner:</strong> Demo / not running</span><span>◷ <strong>Last successful scan:</strong> Not available</span><span>◷ <strong>Next scan:</strong> Not configured</span><span>⌁ <strong>Repository:</strong> Mintplex-Labs/anything-llm</span></div>
-        <div class="metrics">
-          <div class="metric"><div class="metric-top">New signals <span class="metric-icon">◈</span></div><div class="metric-number" id="metricNew">4</div><div class="metric-foot"><span class="fresh">● Demo data</span> · not a live scan count</div></div>
-          <div class="metric"><div class="metric-top">High relevance <span class="metric-icon">↗</span></div><div class="metric-number" id="metricHigh">3</div><div class="metric-foot">Score ≥ 80 <strong>in demo fixtures</strong></div></div>
-          <div class="metric"><div class="metric-top">Opportunities <span class="metric-icon">✧</span></div><div class="metric-number">3</div><div class="metric-foot">Aggregated demo opportunities</div></div>
-          <div class="metric"><div class="metric-top">Active plans <span class="metric-icon">☷</span></div><div class="metric-number" id="metricPlans">2</div><div class="metric-foot">Local browser state · prototype</div></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Explore repository evidence and project-relevant technology signals with TechCompass."
+    />
+    <title>TechCompass · Project intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/config.js"></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Workspace navigation">
+        <a class="brand" href="#overview" aria-label="TechCompass home">
+          <span class="brand-mark" aria-hidden="true">T</span>
+          <span class="brand-copy">
+            <strong>TechCompass</strong>
+            <small>Project intelligence</small>
+          </span>
+        </a>
+
+        <div class="project-context">
+          <span class="project-avatar" aria-hidden="true">A</span>
+          <span>
+            <small>Analyzed repository</small>
+            <strong>AnythingLLM</strong>
+          </span>
+          <span class="project-chevron" aria-hidden="true">⌄</span>
         </div>
-        <div class="feed-layout">
-          <div class="feed-main">
-            <div class="feed-toolbar">
-              <div class="tabs" id="feedTabs">
-                <button class="tab active" data-view="all">All signals <span class="tab-count" id="tabAllCount">6</span></button>
-                <button class="tab" data-view="new">New <span class="tab-count">4</span></button>
-                <button class="tab" data-view="high">High relevance</button>
-                <button class="tab" data-view="saved">Saved</button>
-                <button class="tab" data-view="dismissed">Dismissed</button>
-              </div>
-              <div class="filters"><div class="search"><input id="signalSearch" type="search" placeholder="Search signals…" aria-label="Search signals"></div><select class="select" id="sourceFilter" aria-label="Filter source"><option value="all">All source types</option><option>Official release</option><option>Engineering blog</option><option>Research</option><option>Security advisory</option></select><select class="select" id="sortFilter" aria-label="Sort signals"><option value="relevance">Sort: Relevance</option><option value="recent">Sort: Recent</option><option value="impact">Sort: Potential impact</option></select></div>
+
+        <p class="nav-label">Workspace</p>
+        <nav class="workspace-nav">
+          <a href="#chat-section"><span aria-hidden="true">◈</span>Signal research</a>
+          <a href="#graph-section"><span aria-hidden="true">⌘</span>Architecture explorer</a>
+          <a href="#sources-section"><span aria-hidden="true">◉</span>Sources &amp; monitoring</a>
+        </nav>
+
+        <div class="sidebar-note">
+          <span class="sidebar-note-icon" aria-hidden="true">⌁</span>
+          <strong>Evidence first</strong>
+          <p>Recommendations are grounded in repository paths, documentation, and cited sources.</p>
+        </div>
+
+        <div class="sidebar-footer">
+          <span class="avatar" aria-hidden="true">TC</span>
+          <span><strong>TechCompass</strong><small>Graph workspace</small></span>
+        </div>
+      </aside>
+
+      <div class="workspace-main">
+        <header class="topbar" id="overview">
+          <div class="breadcrumb">Workspace <span>/</span> <strong>AnythingLLM</strong></div>
+          <div class="topbar-context"><span class="status-dot"></span>Graph-backed research</div>
+        </header>
+
+        <main id="chat-view" class="content">
+          <section class="page-heading">
+            <div>
+              <p class="eyebrow">Project intelligence / Overview</p>
+              <h1>Technology signals, in project context</h1>
+              <p class="subtitle">
+                Explore AnythingLLM’s graph, ask the agent to find relevant developments,
+                and inspect what the repository evidence says about their impact.
+              </p>
             </div>
-            <div class="signal-list" id="signalList" aria-live="polite"></div>
-            <div class="footer-note">Demo content for interface evaluation only. No external scanner is running.</div>
-          </div>
-          <aside class="side-stack">
-            <div class="side-panel"><div class="panel-head"><div><div class="panel-title">Priority opportunities</div><div class="panel-description">Suggested review queue · demo</div></div><button class="text-btn" data-goto="opportunities">View all →</button></div><div class="side-body">
-              <div class="priority-item"><div class="priority-num">01</div><div><strong>Evaluate retrieval quality improvements</strong><p>High potential · Medium effort</p></div></div>
-              <div class="priority-item"><div class="priority-num">02</div><div><strong>Review dependency security posture</strong><p>High potential · Low effort</p></div></div>
-              <div class="priority-item"><div class="priority-num">03</div><div><strong>Improve provider observability</strong><p>Moderate potential · Medium effort</p></div></div>
-            </div></div>
-            <div class="side-panel"><div class="panel-head"><div><div class="panel-title">Source health</div><div class="panel-description">No live fetch telemetry</div></div><span class="pill amber">Demo</span></div><div class="side-body">
-              <div class="source-status"><span class="dot warn"></span>Official release notes <small>Not connected</small></div><div class="source-status"><span class="dot warn"></span>Engineering blogs <small>Not connected</small></div><div class="source-status"><span class="dot warn"></span>Research papers <small>Not connected</small></div><div class="source-status"><span class="dot warn"></span>Security advisories <small>Not connected</small></div>
-            </div></div>
-            <div class="notice"><strong>Evidence-first by design</strong>Signal-to-architecture links shown here are illustrative demo fixtures. Verify them against live FalkorDB results before making engineering decisions.</div>
-          </aside>
-        </div>
-      </section>
-      <!-- SIGNAL DETAIL -->
-      <section class="page" id="page-detail">
-        <div class="detail-hero"><button class="detail-back" id="backToFeed">← Back to Signal Feed</button><div class="source-line" id="detailSourceLine"></div><h2 id="detailTitle">Signal analysis</h2><p class="subtitle" id="detailSummary"></p><div class="signal-meta" id="detailTags" style="margin-top:13px"></div></div>
-        <div class="detail-layout"><div>
-          <div class="report-section"><h3><span>◈</span> Signal summary</h3><p id="detailLongSummary"></p><p><strong>Source:</strong> <a href="#" id="detailSourceLink" target="_blank" rel="noopener noreferrer" style="color:#087f72;text-decoration:underline">Open original source ↗</a></p></div>
-          <div class="report-section"><h3><span>⌁</span> Project relevance</h3><p id="detailRelevance"></p><div class="evidence-item"><strong>Why this classification?</strong><p id="detailReason"></p></div><div class="signal-meta"><span class="pill teal" id="detailClassification">Potentially relevant</span><span class="pill gray" id="detailConfidence">Confidence: medium</span></div></div>
-          <div class="report-section"><h3><span>⌘</span> Graph evidence</h3><p>In a connected implementation, this section should be populated from actual FalkorDB query results and include source references or excerpts. The current entries are explicitly illustrative.</p><div id="detailEvidence"></div><div class="notice"><strong>Evidence limitation</strong>Missing graph evidence is not proof that a capability is absent. Confirm against repository code, docs, and graph coverage.</div></div>
-          <div class="report-section"><h3><span>✧</span> Opportunity analysis</h3><div id="detailOpportunity"></div></div>
-          <div class="report-section"><h3><span>☷</span> Recommended plan</h3><div id="detailPlanSteps"></div><div class="signal-meta" style="margin-top:12px"><span class="pill amber">Decision: Prototype</span><span class="pill gray">Effort: 2–4 days · illustrative</span></div><p>Plan is a recommendation only. Saving it does not change code, open a pull request, or deploy anything.</p><button class="btn primary" id="createPlanFromDetail">＋ Create implementation plan</button></div>
-        </div><aside class="side-stack"><div class="side-panel"><div class="panel-head"><div class="panel-title">Assessment</div></div><div class="side-body"><div class="detail-row"><label>Relevance score</label><strong id="detailScore">86 / 100</strong></div><div class="detail-row"><label>Potential impact</label><strong id="detailImpact">High</strong></div><div class="detail-row"><label>Analysis status</label><strong><span class="pill amber">Demo analysis</span></strong></div><div class="detail-row"><label>Discovery date</label><strong id="detailDiscovery">Demo fixture</strong></div><div class="detail-row"><label>Related components</label><strong id="detailComponents">Retrieval pipeline</strong></div></div></div>
-          <div class="side-panel"><div class="panel-head"><div class="panel-title">Actions</div></div><div class="side-body" style="display:grid;gap:8px"><button class="btn" id="detailSaveBtn">☆ Save for review</button><button class="btn" id="detailDismissBtn">⊘ Dismiss signal</button><button class="btn" id="detailOpenSourceBtn">↗ Open original source</button></div></div></aside></div>
-      </section>
-      <!-- OPPORTUNITIES -->
-      <section class="page" id="page-opportunities">
-        <div class="page-heading"><div><div class="eyebrow">Synthesis / Engineering impact</div><h1>Opportunities</h1><p class="subtitle">Related signals grouped into engineering opportunities, with benefits and evidence strength.</p></div><div class="heading-actions"><button class="btn" id="opportunityRefresh">↻ Refresh groups</button></div></div>
-        <div class="status-line"><span><i class="dot warn"></i><strong>Aggregation:</strong> Demo fixtures</span><span>Grouping and prioritization are not generated by the backend yet.</span></div>
-        <div class="section-grid">
-          <article class="opportunity-card"><div class="opp-top"><span class="pill teal">High priority</span><span class="pill gray">2 signals</span></div><div class="opp-card-title">Evaluate retrieval quality improvements</div><div class="opp-description">Investigate whether current retrieval evaluation can better measure relevance, grounding, and regression risk across representative workspaces.</div><div class="signal-meta"><span class="pill indigo">Retrieval</span><span class="pill gray">Evaluation</span></div><div class="opp-stats"><div class="opp-stat"><span>Expected benefit</span><strong>High</strong></div><div class="opp-stat"><span>Effort estimate</span><strong>Medium</strong></div><div class="opp-stat"><span>Evidence strength</span><strong>Illustrative</strong></div><div class="opp-stat"><span>Affected areas</span><strong>RAG pipeline</strong></div></div><div class="opp-foot"><span class="pill amber">Needs validation</span><button class="btn small" data-plan="Evaluate retrieval quality improvements">Create plan →</button></div></article>
-          <article class="opportunity-card"><div class="opp-top"><span class="pill red">High priority</span><span class="pill gray">1 signal</span></div><div class="opp-card-title">Review dependency security posture</div><div class="opp-description">Establish a repeatable review of dependency advisories, version constraints, and affected transitive packages before upgrades.</div><div class="signal-meta"><span class="pill indigo">Dependencies</span><span class="pill gray">Security</span></div><div class="opp-stats"><div class="opp-stat"><span>Expected benefit</span><strong>High</strong></div><div class="opp-stat"><span>Effort estimate</span><strong>Low–Medium</strong></div><div class="opp-stat"><span>Evidence strength</span><strong>Illustrative</strong></div><div class="opp-stat"><span>Affected areas</span><strong>Package graph</strong></div></div><div class="opp-foot"><span class="pill amber">Verify versions</span><button class="btn small" data-plan="Review dependency security posture">Create plan →</button></div></article>
-          <article class="opportunity-card"><div class="opp-top"><span class="pill amber">Medium priority</span><span class="pill gray">2 signals</span></div><div class="opp-card-title">Improve provider observability</div><div class="opp-description">Consider consistent tracing and structured error reporting around external model and embedding provider integrations.</div><div class="signal-meta"><span class="pill indigo">Integrations</span><span class="pill gray">Observability</span></div><div class="opp-stats"><div class="opp-stat"><span>Expected benefit</span><strong>Medium–High</strong></div><div class="opp-stat"><span>Effort estimate</span><strong>Medium</strong></div><div class="opp-stat"><span>Evidence strength</span><strong>Illustrative</strong></div><div class="opp-stat"><span>Affected areas</span><strong>Provider adapters</strong></div></div><div class="opp-foot"><span class="pill gray">Monitor</span><button class="btn small" data-plan="Improve provider observability">Create plan →</button></div></article>
-        </div>
-      </section>
-      <!-- ARCHITECTURE -->
-      <section class="page" id="page-architecture">
-        <div class="page-heading"><div><div class="eyebrow">Knowledge graph / Project map</div><h1>Architecture Explorer</h1><p class="subtitle">Inspect project entities and relationships. Demo graph below is illustrative, not fetched from FalkorDB.</p></div><div class="heading-actions"><button class="btn" id="graphReload">↻ Reload graph</button><button class="btn primary" id="graphFit">⌗ Fit view</button></div></div>
-        <div class="status-line"><span><i class="dot warn"></i><strong>Graph source:</strong> Demo fixture</span><span>Connect <code>/api/graph/project</code> and <code>/api/graph/architecture</code> to replace this visualization.</span></div>
-        <div class="explorer-layout"><div class="panel"><div class="panel-head"><div><div class="panel-title">Project relationship map</div><div class="panel-description">Select a node to inspect its demo properties and connections.</div></div><select class="select" id="graphFilter"><option value="all">All node types</option><option value="component">Components</option><option value="package">Packages</option><option value="document">Documents</option><option value="concept">Concepts</option></select></div><div class="graph-area"><div class="graph-toolbar"><input class="graph-search" id="graphSearch" placeholder="Search nodes…" aria-label="Search graph nodes"><span class="pill amber">Illustrative graph</span></div><svg class="graph-canvas" id="graphSvg" viewBox="0 0 760 510" role="img" aria-label="Illustrative architecture relationship graph"></svg></div></div>
-          <aside class="graph-side"><h3 id="nodeTitle">Select a node</h3><p id="nodeDescription">Choose a node in the graph to see its type, relationships, and a source reference placeholder.</p><div class="detail-row"><label>Node type</label><strong id="nodeType">—</strong></div><div class="detail-row"><label>Relationships</label><strong id="nodeRelations">—</strong></div><div class="detail-row"><label>Source reference</label><strong id="nodeSource">Not connected</strong></div><div class="detail-row"><label>Evidence status</label><strong><span class="pill amber">Demo only</span></strong></div><button class="btn" style="width:100%;margin-top:14px" id="traceNode">Trace related paths</button></aside></div>
-      </section>
-      <!-- ACTION PLANS -->
-      <section class="page" id="page-plans">
-        <div class="page-heading"><div><div class="eyebrow">Execution / Engineering decisions</div><h1>Action Plans</h1><p class="subtitle">Turn a reviewed signal into a structured, trackable engineering recommendation.</p></div><div class="heading-actions"><button class="btn primary" id="newPlanBtn">＋ New plan</button></div></div>
-        <div class="status-line"><span><i class="dot warn"></i><strong>Persistence:</strong> This browser only</span><span>Plans are saved to localStorage on this device; no backend plan endpoint is configured.</span></div>
-        <div class="panel"><div class="panel-head"><div><div class="panel-title">Implementation plans</div><div class="panel-description">Track recommendation, affected areas, status, and next steps.</div></div><select class="select" id="planStatusFilter"><option value="all">All statuses</option><option>Proposed</option><option>Under Review</option><option>Approved</option><option>In Progress</option><option>Completed</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Plan</th><th>Priority</th><th>Affected areas</th><th>Status</th><th>Progress</th><th>Updated</th><th>Action</th></tr></thead><tbody id="plansTable"></tbody></table></div><div id="plansEmpty" class="empty-state" style="display:none"><div class="empty-icon">☷</div><strong>No plans in this view</strong><p>Create a plan from a signal or opportunity to start tracking a recommendation.</p><button class="btn primary" id="emptyNewPlan">＋ Create plan</button></div></div>
-        <div class="footer-note">Plan status is a local prototype workflow. Saving a plan never modifies project code or deploys changes.</div>
-      </section>
-      <!-- SOURCES -->
-      <section class="page" id="page-sources">
-        <div class="page-heading"><div><div class="eyebrow">Collection / Monitoring setup</div><h1>Sources & Monitoring</h1><p class="subtitle">Configure the categories and rules a future scheduled scanner should use.</p></div><div class="heading-actions"><button class="btn" id="resetSources">Reset demo settings</button><button class="btn primary" id="saveSources">Save settings</button></div></div>
-        <div class="notice" style="margin-bottom:17px"><strong>Prototype-only controls</strong>These controls change local browser state only. They do not start a scanner, fetch content, or schedule jobs. A backend scanner and persistence endpoint must be implemented before settings become operational.</div>
-        <div class="panel" style="margin-bottom:16px"><div class="panel-head"><div><div class="panel-title">Source categories</div><div class="panel-description">Enable the types of sources the scanner should monitor.</div></div><span class="pill amber">Not connected</span></div><div class="source-grid" style="padding:14px" id="sourceCards"></div></div>
-        <div class="settings-card"><h3>Scan policy</h3><p>Preferred settings for a future backend scanner. No jobs are scheduled by this prototype.</p>
-          <div class="form-row"><div><label for="scanFrequency">Scan frequency</label><div class="help">How often the backend should check enabled sources.</div></div><select id="scanFrequency"><option value="manual">Manual only</option><option value="6h">Every 6 hours</option><option value="12h">Every 12 hours</option><option value="daily" selected>Daily</option><option value="weekly">Weekly</option></select></div>
-          <div class="form-row"><div><label for="relevanceThreshold">Minimum relevance threshold</label><div class="help">Only surface items at or above this score, once scoring is connected.</div></div><select id="relevanceThreshold"><option value="50">50 / 100 · Broad</option><option value="65" selected>65 / 100 · Balanced</option><option value="80">80 / 100 · Strict</option></select></div>
-          <div class="form-row"><div><label for="duplicateMode">Duplicate detection</label><div class="help">Deduplicate syndicated or repeated signals.</div></div><select id="duplicateMode"><option value="title-url">Title + canonical URL</option><option value="semantic">Semantic similarity (requires backend)</option><option value="off">Disabled</option></select></div>
-          <div class="form-row"><div><label for="topicFilters">Topic filters</label><div class="help">Comma-separated topics for future scanner rules.</div></div><input id="topicFilters" value="RAG, LLM, embeddings, security, integrations"></div>
-          <div style="display:flex;justify-content:flex-end;margin-top:15px"><button class="btn primary" id="savePolicy">Save local preferences</button></div>
-        </div>
-      </section>
-      <!-- PROJECT SETTINGS -->
-      <section class="page" id="page-settings">
-        <div class="page-heading"><div><div class="eyebrow">Configuration / Connections</div><h1>Project Settings</h1><p class="subtitle">Set the project identity and prepare the frontend for real API integration.</p></div><div class="heading-actions"><button class="btn primary" id="saveProject">Save project settings</button></div></div>
-        <div class="settings-layout"><div class="settings-nav"><button class="active" data-settings="project">Project details</button><button data-settings="api">API connection</button><button data-settings="privacy">Data & security</button></div><div>
-          <div class="settings-card" id="settings-project"><h3>Project details</h3><p>Identity shown throughout TechCompass.</p><div class="form-row"><div><label for="projectName">Project name</label><div class="help">A short name for the monitored codebase.</div></div><input id="projectName" value="AnythingLLM"></div><div class="form-row"><div><label for="repoUrl">Repository URL</label><div class="help">Used as the project’s canonical source link.</div></div><input id="repoUrl" value="https://github.com/Mintplex-Labs/anything-llm"></div><div class="form-row"><div><label for="defaultBranch">Default branch</label></div><input id="defaultBranch" value="master"></div><div class="form-row"><div><label for="projectDescription">Project description</label></div><input id="projectDescription" value="Open-source AI application with retrieval and workspace integrations"></div></div>
-          <div class="settings-card"><h3>Backend API</h3><p>API base URL is read from the browser setting below. Never place API keys or database credentials in frontend code.</p><div class="form-row"><div><label for="apiBase">API base URL</label><div class="help">Example: http://localhost:8000</div></div><input id="apiBase" placeholder="http://localhost:8000"></div><div class="form-row"><div><label>Expected health endpoint</label><div class="help">GET /health/ready</div></div><button class="btn" id="testApi">Test connection</button></div><div class="form-row"><div><label>Known graph endpoints</label><div class="help">GET /api/graph/summary · /project · /architecture?q=… · /dependencies?component=… · /package-usage?package=… · /package-impact?package=…</div></div><span class="pill gray">Not yet verified</span></div></div>
-          <div class="settings-card"><h3>Data & security</h3><p>Trust boundaries for the prototype and future production implementation.</p><div class="check-line"><input type="checkbox" checked disabled><span>Secrets remain server-side; frontend must not contain Groq keys or FalkorDB credentials.</span></div><div class="check-line"><input type="checkbox" checked disabled><span>Signal data must identify demo fixtures separately from verified backend records.</span></div><div class="check-line"><input type="checkbox" checked disabled><span>Generated action plans are advisory and require human approval before engineering changes.</span></div><div class="notice" style="margin-top:14px"><strong>Integration status</strong>Signal discovery, persistence, scheduled scanning, and saved-plan API endpoints are not assumed to exist. Add backend contracts before removing demo labels.</div></div>
-        </div></div>
-      </section>
+          </section>
+
+          <section id="chat-section" class="panel chat-panel" aria-label="Signal research agent">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Signal research</p>
+                <h2>Ask TechCompass</h2>
+                <p class="panel-description">The agent can use the TechCompass objectives and AnythingLLM graph to choose focused live-source searches.</p>
+              </div>
+              <span class="panel-tag">Graph + live sources</span>
+            </div>
+            <div id="messages" class="messages" aria-live="polite"></div>
+            <form id="chat-form" class="composer">
+              <label class="visually-hidden" for="question-input">Your question</label>
+              <textarea
+                id="question-input"
+                name="question"
+                rows="2"
+                minlength="3"
+                maxlength="1500"
+                placeholder="Find recent technology news relevant to this project and explain relevance separately from code impact..."
+                required
+              ></textarea>
+              <div class="composer-footer">
+                <span>Check the source links and graph tools behind each answer.</span>
+                <button id="send-button" class="button button-primary" type="submit">Ask agent <span aria-hidden="true">→</span></button>
+              </div>
+            </form>
+          </section>
+
+          <section id="graph-section" class="panel" aria-label="Architecture explorer">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Repository evidence</p>
+                <h2>Architecture explorer</h2>
+                <p class="panel-description">Trace package paths from a repository component and inspect linked external evidence.</p>
+              </div>
+            </div>
+            <form id="graph-form" class="graph-controls">
+              <label for="component-input">Component</label>
+              <input
+                id="component-input"
+                name="component"
+                value="anything-llm-server"
+                maxlength="100"
+                required
+              />
+              <label for="depth-input">Path depth</label>
+              <select id="depth-input" name="depth">
+                <option value="1">1 hop</option>
+                <option value="2">2 hops</option>
+                <option value="3">3 hops</option>
+                <option value="4" selected>4 hops</option>
+              </select>
+              <button id="graph-button" class="button button-primary" type="submit">Explore paths</button>
+            </form>
+            <p id="graph-status" class="panel-status" role="status"></p>
+            <div id="graph-canvas" class="graph-canvas" role="img" aria-label="Dependency path graph">
+              <p class="empty-state">Explore a component to draw its dependency paths.</p>
+            </div>
+            <div id="external-evidence" class="external-evidence"></div>
+          </section>
+
+          <section id="sources-section" class="panel" aria-label="External sources">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">External knowledge</p>
+                <h2>Sources &amp; monitoring</h2>
+                <p class="panel-description">Preview connector responses without writing, or explicitly sync fetched items to FalkorDB.</p>
+              </div>
+              <div class="source-actions">
+                <form id="preview-form">
+                  <button id="preview-button" class="button button-secondary" type="submit">Test connectors</button>
+                </form>
+                <form id="sync-form">
+                  <button id="sync-button" class="button button-primary" type="submit">Sync sources</button>
+                </form>
+              </div>
+            </div>
+            <div class="news-controls" aria-label="Google News connector settings">
+              <div class="field-group field-query">
+                <label for="google-news-query">Google News query <span>Optional</span></label>
+                <input id="google-news-query" maxlength="250" value="" placeholder='e.g. "Hugging Face" OR open source AI' />
+              </div>
+              <div class="field-group">
+                <label for="google-news-language">Language</label>
+                <select id="google-news-language">
+                  <option value="en-US" selected>English (US)</option>
+                  <option value="en-GB">English (UK)</option>
+                  <option value="hi-IN">Hindi (India)</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="google-news-country">Region</label>
+                <select id="google-news-country">
+                  <option value="US" selected>United States</option>
+                  <option value="IN">India</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="CA">Canada</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="preview-size">Preview size</label>
+                <select id="preview-size">
+                  <option value="small" selected>Small</option>
+                  <option value="medium">Medium</option>
+                </select>
+              </div>
+            </div>
+            <p id="source-status" class="panel-status" role="status"></p>
+            <div id="connector-results" class="connector-results"></div>
+            <div class="source-forms">
+              <form id="article-form" class="source-form">
+                <label for="article-url">Add a public article or advisory URL</label>
+                <div class="inline-form">
+                  <input id="article-url" name="url" type="url" placeholder="https://example.com/article" required />
+                  <button id="article-button" class="button button-secondary" type="submit">Add URL</button>
+                </div>
+              </form>
+              <form id="search-form" class="source-form">
+                <label for="knowledge-query">Search ingested external knowledge</label>
+                <div class="inline-form">
+                  <input id="knowledge-query" name="query" maxlength="200" placeholder="e.g. package or vulnerability" required />
+                  <button class="button button-secondary" type="submit">Search</button>
+                </div>
+              </form>
+            </div>
+            <div id="search-results" class="external-evidence"></div>
+          </section>
+          <footer class="page-footer">TechCompass · Evidence first, recommendations second.</footer>
+        </main>
+      </div>
     </div>
-  </main>
-</div>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div class="modal-backdrop" id="modalBackdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle">Create implementation plan</h2><p id="modalText">Save a structured recommendation for review.</p><label for="modalPlanName" style="display:block;font-size:11px;font-weight:700;margin-top:15px;margin-bottom:6px">Plan title</label><input id="modalPlanName" style="width:100%;border:1px solid #dfe5ed;border-radius:8px;padding:10px;font-size:12px" value=""><div class="modal-actions"><button class="btn" id="modalCancel">Cancel</button><button class="btn primary" id="modalConfirm">Save plan</button></div></div></div>
-<script>
-/* TechCompass standalone prototype.
-   Signal records and graph relationships below are demo fixtures, not live facts.
-   Replace the adapter methods with verified FastAPI responses when backend schemas are available. */
-const DEMO_SIGNALS = [
- {id:"sig-101",title:"New retrieval evaluation techniques for RAG applications",publisher:"Engineering Research Digest",sourceType:"Research",date:"2026-10-15",discovered:"Demo fixture",score:91,impact:3,tags:["RAG","Evaluation","Retrieval"],component:"Retrieval pipeline",status:"new",summary:"A research overview describes evaluation approaches for retrieval-augmented generation, including relevance measurement and grounded-answer checks.",longSummary:"This illustrative signal represents a research item about evaluating retrieval-augmented generation systems. Before acting on it, verify the original publication, reproduce its claims, and map each suggested method to current AnythingLLM code and test coverage. This card is sample interface content and does not represent a real fetched article.",relevance:"Potentially relevant because retrieval quality and grounded answers are important concerns for applications that connect language models to workspace documents. Relevance is a hypothesis until current implementation details and the source are verified.",reason:"Topic overlap with retrieval and evaluation. No live graph query or source excerpt is attached in this demo.",confidence:"Medium (demo)",sourceUrl:"https://example.com/research/rag-evaluation",evidence:[["Concept match · Retrieval pipeline","Illustrative connection only. Verify actual node and relationship IDs from FalkorDB."],["Validation area · Evaluation tests","Check whether evaluation datasets and regression tests already cover the proposed technique."]],opportunity:["Already supported","Retrieval-based answers are part of the product concept; verify exact current implementation and test coverage."],plan:["Verify source credibility and reproduce the key claims.","Trace related components and tests from FalkorDB and repository code.","Build a small representative evaluation set and establish a baseline.","Prototype one metric or technique behind a feature flag.","Compare results, latency, and cost; document a go / no-go decision."]},
- {id:"sig-102",title:"Dependency advisory: review transitive package exposure",publisher:"Open Source Security Bulletin",sourceType:"Security advisory",date:"2026-10-14",discovered:"Demo fixture",score:87,impact:3,tags:["Security","Dependencies","Risk"],component:"Package dependency graph",status:"new",summary:"A sample security-monitoring signal highlights the need to verify direct and transitive dependency versions against trusted advisories.",longSummary:"This is a representative security workflow example, not a real vulnerability report. No specific package, CVE, affected version, or exploitability claim is asserted. A real integration should retain the authoritative advisory URL, affected version range, publication timestamp, and evidence used to match the project lockfile.",relevance:"Potentially relevant as a process improvement: project dependencies should be compared with authoritative advisories and actual resolved versions before any upgrade is proposed.",reason:"The signal is tagged as security and dependencies, but there is no confirmed package match or vulnerability finding in this fixture.",confidence:"Low–medium (demo)",sourceUrl:"https://example.com/security/dependency-advisory",evidence:[["Dependency inventory · Needs live query","Use /api/graph/dependencies?component=... or package-impact query when supported."],["Version match · Not established","Do not claim the project is vulnerable until package and version evidence is verified."]],opportunity:["Potential improvement","Automate an advisory-to-lockfile matching workflow with human review for false positives."],plan:["Fetch the advisory from its authoritative publisher.","Resolve package names and versions from the project lockfiles.","Check affected ranges and transitive dependency paths.","Assess exploitability and available patched versions.","Open a reviewed maintenance task only after validation."]},
- {id:"sig-103",title:"Provider observability patterns for model integrations",publisher:"Platform Engineering Notes",sourceType:"Engineering blog",date:"2026-10-12",discovered:"Demo fixture",score:82,impact:2,tags:["Integrations","Observability","LLM"],component:"Provider adapters",status:"new",summary:"A sample engineering post discusses consistent tracing, error classification, and latency reporting around external model providers.",longSummary:"This illustrative signal models a potential platform engineering idea: use consistent telemetry around model and embedding provider calls. The article and its claims must be replaced with a verified source before this can be used as evidence. Compare any proposed changes with existing logging, telemetry, and privacy practices.",relevance:"Could be relevant if provider failures are difficult to diagnose across integrations. Confirm which tracing and error-reporting capabilities already exist before proposing new work.",reason:"The topic overlaps with provider integrations, but the exact components and current telemetry coverage have not been verified.",confidence:"Medium (demo)",sourceUrl:"https://example.com/engineering/provider-observability",evidence:[["Provider adapters · Illustrative","Inspect actual adapter symbols and existing logging before assuming a gap."],["Operational constraints · Verify","Check whether payloads or personal data could be exposed through logs."]],opportunity:["Possible improvement","Standardize non-sensitive timing, error category, and request correlation metadata."],plan:["Inventory existing provider logging and metrics.","Identify one representative provider flow and failure mode.","Define privacy-safe fields and a consistent error taxonomy.","Prototype structured telemetry in a non-production environment.","Add tests and compare diagnostic value against overhead."]},
- {id:"sig-104",title:"Release note watch: embedding model compatibility changes",publisher:"Model Ecosystem Release Notes",sourceType:"Official release",date:"2026-10-10",discovered:"Demo fixture",score:76,impact:2,tags:["Embeddings","Compatibility","Release"],component:"Embedding integration",status:"new",summary:"A sample release-monitoring item suggests checking embedding model changes for API compatibility and vector dimension assumptions.",longSummary:"This placeholder represents a release-note review workflow. It does not claim a particular provider changed its API. A real signal should preserve the official release version and notes, then verify compatibility against configured embedding providers and stored vector dimensions.",relevance:"Potentially relevant if AnythingLLM deployments depend on affected providers or embedding configurations. Actual impact depends on the configured provider and version.",reason:"The item is an illustrative release signal with no verified provider or version match.",confidence:"Medium (demo)",sourceUrl:"https://example.com/releases/embedding-compatibility",evidence:[["Embedding integration · Illustrative","Inspect configured provider paths and vector-store assumptions."],["Migration notes · Not attached","No official changelog excerpt is included in this demo."]],opportunity:["Needs verification","Create a compatibility checklist before changing provider or model versions."],plan:["Verify the official release and breaking-change notes.","Identify supported providers and current configured versions.","Check vector dimensions and migration implications.","Run compatibility tests against representative stored data.","Document rollout and rollback requirements."]},
- {id:"sig-105",title:"Research roundup: practical deduplication for technical feeds",publisher:"Developer Tools Review",sourceType:"Research",date:"2026-10-06",discovered:"Demo fixture",score:68,impact:1,tags:["Discovery","Deduplication"],component:"Future signal ingestion",status:"reviewed",summary:"A sample research roundup compares canonical URL matching and semantic similarity for duplicate detection in content feeds.",longSummary:"This example describes a possible scanner design choice. It does not assert that a scanner exists in the backend. Canonical URL normalization is simpler and auditable; semantic deduplication may require embeddings, thresholds, and a review path for near-duplicates.",relevance:"Relevant to a future signal ingestion pipeline if multiple sources syndicate the same article. It is not evidence of a current product capability or gap.",reason:"The concept relates to the requested future monitoring workflow; no production scanner endpoint is connected.",confidence:"Medium (demo)",sourceUrl:"https://example.com/research/feed-deduplication",evidence:[["Monitoring settings · Prototype","Local controls are present but do not schedule scans."],["Ingestion service · Not verified","Backend discovery and persistence APIs are not currently wired into this page."]],opportunity:["Potential future capability","Define a stable deduplication key and retain canonical source metadata."],plan:["Review available source metadata and canonical URLs.","Define normalization rules and test syndicated content examples.","Measure duplicate and false-merge rates on a sample dataset.","Add semantic matching only if URL/title matching is insufficient."]},
- {id:"sig-106",title:"Architecture note: documenting integration boundaries",publisher:"Software Architecture Journal",sourceType:"Engineering blog",date:"2026-10-02",discovered:"Demo fixture",score:55,impact:1,tags:["Architecture","Documentation"],component:"Architecture documentation",status:"dismissed",summary:"A sample architecture note suggests documenting ownership and boundaries between integrations, services, and persistence layers.",longSummary:"This is an illustrative documentation signal. Whether it adds value depends on the quality and freshness of existing architecture documentation.",relevance:"Possibly useful as a documentation practice, but the current signal is broad and lacks concrete evidence of a project-specific issue.",reason:"Low specificity and no verified graph evidence linking the recommendation to a current problem.",confidence:"Low (demo)",sourceUrl:"https://example.com/architecture/integration-boundaries",evidence:[["Documentation nodes · Not verified","Inspect the connected graph and repository docs before inferring missing documentation." ]],opportunity:["Monitor","Revisit if a concrete integration ownership issue is found."],plan:["Check existing architecture docs and ownership conventions.","Identify a concrete gap before creating new documentation.","Propose a small targeted update if the gap is confirmed."]}
-];
-const initialPlans=[
- {id:"plan-201",title:"Evaluate retrieval quality improvements",priority:"High",areas:"Retrieval pipeline, evaluation",status:"Under Review",progress:25,updated:"Demo fixture",tasks:["Verify source and claims","Inspect related components","Define baseline evaluation","Prototype and compare results"]},
- {id:"plan-202",title:"Review dependency security posture",priority:"High",areas:"Package dependency graph",status:"Proposed",progress:0,updated:"Demo fixture",tasks:["Verify authoritative advisory","Match resolved package versions","Assess impact","Recommend remediation"]}
-];
-const sourceDefs=[
- {id:"official",name:"Official release notes",desc:"Vendor and project release announcements",mark:"RN",last:"Not connected",latest:"No item fetched"},
- {id:"blogs",name:"Engineering blogs",desc:"Engineering teams and technical publications",mark:"EB",last:"Not connected",latest:"No item fetched"},
- {id:"research",name:"Research papers",desc:"Papers and preprints relevant to project topics",mark:"RP",last:"Not connected",latest:"No item fetched"},
- {id:"security",name:"Security advisories",desc:"Official vulnerability and package advisories",mark:"SA",last:"Not connected",latest:"No item fetched"},
- {id:"ecosystem",name:"Project ecosystem updates",desc:"Frameworks, packages, and adjacent tools",mark:"EC",last:"Not connected",latest:"No item fetched"},
- {id:"news",name:"Technology news",desc:"Curated technology news sources",mark:"TN",last:"Not connected",latest:"No item fetched"}
-];
-let signals=DEMO_SIGNALS.map(s=>({...s,tags:[...s.tags],evidence:[...s.evidence],plan:[...s.plan]}));
-let plans=loadPlans(); let activeView="all";let selectedSignal=null;let currentPage="feed";let pendingPlanTitle="";
-function loadPlans(){try{const x=localStorage.getItem("techcompass_plans");return x?JSON.parse(x):initialPlans.map(p=>({...p,tasks:[...p.tasks]}))}catch(e){return initialPlans.map(p=>({...p,tasks:[...p.tasks]}))}}
-function savePlans(){try{localStorage.setItem("techcompass_plans",JSON.stringify(plans))}catch(e){}}
-function toast(message){const el=document.getElementById("toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600)}
-function go(page){currentPage=page;document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));const target=document.getElementById("page-"+page);if(target)target.classList.add("active");document.querySelectorAll(".nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));const names={feed:"Signal Feed",detail:"Signal Analysis",opportunities:"Opportunities",architecture:"Architecture Explorer",plans:"Action Plans",sources:"Sources & Monitoring",settings:"Project Settings"};document.getElementById("breadcrumb").textContent=names[page]||page;document.getElementById("sidebar").classList.remove("open");if(page==="plans")renderPlans();if(page==="sources")renderSources();window.scrollTo({top:0,behavior:"smooth"})}
-document.querySelectorAll(".nav button[data-page]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.page)));
-document.querySelectorAll("[data-goto]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.goto)));
-document.getElementById("menuBtn").addEventListener("click",()=>document.getElementById("sidebar").classList.toggle("open"));
-document.getElementById("notificationBtn").addEventListener("click",()=>toast("Notifications are demo-only; no live alert service is connected."));
-function visibleSignals(){let list=signals.filter(s=>{if(activeView==="new"&&s.status!=="new")return false;if(activeView==="high"&&s.score<80)return false;if(activeView==="saved"&&!s.saved)return false;if(activeView==="dismissed"&&s.status!=="dismissed")return false;if(activeView==="all"&&s.status==="dismissed")return false;const q=document.getElementById("signalSearch").value.toLowerCase().trim();if(q&&!`${s.title} ${s.publisher} ${s.summary} ${s.tags.join(" ")} ${s.component}`.toLowerCase().includes(q))return false;const source=document.getElementById("sourceFilter").value;if(source!=="all"&&s.sourceType!==source)return false;return true});const sort=document.getElementById("sortFilter").value;list.sort((a,b)=>sort==="recent"?b.date.localeCompare(a.date):sort==="impact"?b.impact-a.impact:b.score-a.score);return list}
-function renderSignals(){const list=visibleSignals();const root=document.getElementById("signalList");root.innerHTML="";if(!list.length){root.innerHTML=`<div class="panel empty-state"><div class="empty-icon">⌕</div><strong>No signals found</strong><p>Try a different search or filter. If no signals have been discovered, the connected feed will appear here once backend ingestion is implemented.</p><button class="btn" id="clearFilters">Clear filters</button></div>`;document.getElementById("clearFilters").onclick=()=>{document.getElementById("signalSearch").value="";document.getElementById("sourceFilter").value="all";activeView="all";document.querySelectorAll("#feedTabs .tab").forEach(t=>t.classList.toggle("active",t.dataset.view==="all"));renderSignals()};return}
-list.forEach(s=>{const el=document.createElement("article");el.className="signal-card";el.innerHTML=`<div class="signal-top"><div style="min-width:0;flex:1"><div class="source-line"><span class="source-logo">${escapeHtml(s.publisher.slice(0,1))}</span><span>${escapeHtml(s.publisher)}</span><span>·</span><span>${escapeHtml(s.sourceType)}</span><span>·</span><span>${escapeHtml(s.date)}</span><span class="pill ${s.status==="new"?"teal":s.status==="dismissed"?"gray":"amber"}">${s.status==="new"?"NEW":s.status==="dismissed"?"DISMISSED":"REVIEWED"}</span></div><h3 class="signal-title" tabindex="0" role="button">${escapeHtml(s.title)}</h3></div><div class="score"><strong>${s.score}</strong><span>RELEVANCE</span></div></div><p class="signal-summary">${escapeHtml(s.summary)}</p><div class="signal-meta">${s.tags.map(t=>`<span class="pill gray">${escapeHtml(t)}</span>`).join("")}<span class="pill amber">Demo analysis</span></div><div class="signal-bottom"><div class="component-label">⌘ Related area: <strong>${escapeHtml(s.component)}</strong></div><div class="signal-actions"><button class="text-btn" data-action="view">View analysis ↗</button><button class="text-btn ${s.saved?"saved":""}" data-action="save">${s.saved?"★ Saved":"☆ Save"}</button><button class="text-btn" data-action="dismiss">${s.status==="dismissed"?"↶ Restore":"⊘ Dismiss"}</button><button class="text-btn" data-action="plan">＋ Plan</button></div></div>`;
-el.querySelector(".signal-title").addEventListener("click",()=>openDetail(s.id));el.querySelector(".signal-title").addEventListener("keydown",e=>{if(e.key==="Enter")openDetail(s.id)});el.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>{const a=btn.dataset.action;if(a==="view")openDetail(s.id);if(a==="save"){s.saved=!s.saved;renderSignals();toast(s.saved?"Signal saved for review.":"Removed from saved signals.");}if(a==="dismiss"){s.status=s.status==="dismissed"?"reviewed":"dismissed";renderSignals();toast(s.status==="dismissed"?"Signal dismissed.":"Signal restored to feed.");}if(a==="plan")openPlanModal("Implement: "+s.title,"Created from signal: "+s.title)}));root.appendChild(el)});
-document.getElementById("metricNew").textContent=signals.filter(s=>s.status==="new").length;document.getElementById("metricHigh").textContent=signals.filter(s=>s.score>=80&&s.status!=="dismissed").length;document.getElementById("navNewCount").textContent=signals.filter(s=>s.status==="new").length;document.getElementById("tabAllCount").textContent=signals.filter(s=>s.status!=="dismissed").length;document.getElementById("metricPlans").textContent=plans.filter(p=>p.status!=="Completed").length;document.getElementById("navPlanCount").textContent=plans.length}
-function escapeHtml(str){return String(str??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-document.querySelectorAll("#feedTabs .tab").forEach(b=>b.addEventListener("click",()=>{activeView=b.dataset.view;document.querySelectorAll("#feedTabs .tab").forEach(t=>t.classList.toggle("active",t===b));renderSignals()}));
-["signalSearch","sourceFilter","sortFilter"].forEach(id=>document.getElementById(id).addEventListener(id==="signalSearch"?"input":"change",renderSignals));
-document.getElementById("refreshBtn").addEventListener("click",()=>toast("No API adapter is connected. Showing existing demo fixtures."));
-document.getElementById("scanBtn").addEventListener("click",()=>toast("Scanner is not running. Configure a backend scanner before scheduling scans."));
-document.getElementById("backToFeed").addEventListener("click",()=>go("feed"));
-function openDetail(id){const s=signals.find(x=>x.id===id);if(!s)return;selectedSignal=id;go("detail");document.getElementById("detailSourceLine").innerHTML=`<span class="source-logo">${escapeHtml(s.publisher.slice(0,1))}</span><span>${escapeHtml(s.publisher)}</span><span>·</span><span>${escapeHtml(s.sourceType)}</span><span>·</span><span>${escapeHtml(s.date)}</span><span class="pill amber">Demo fixture</span>`;document.getElementById("detailTitle").textContent=s.title;document.getElementById("detailSummary").textContent=s.summary;document.getElementById("detailLongSummary").textContent=s.longSummary;document.getElementById("detailRelevance").textContent=s.relevance;document.getElementById("detailReason").textContent=s.reason;document.getElementById("detailClassification").textContent=s.score>=80?"Potentially relevant":s.score>=65?"Review relevance":"Low specificity";document.getElementById("detailConfidence").textContent="Confidence: "+s.confidence;document.getElementById("detailScore").textContent=s.score+" / 100 (demo)";document.getElementById("detailImpact").textContent=s.impact===3?"High":s.impact===2?"Moderate":"Low–moderate";document.getElementById("detailDiscovery").textContent=s.discovered;document.getElementById("detailComponents").textContent=s.component;document.getElementById("detailTags").innerHTML=s.tags.map(t=>`<span class="pill gray">${escapeHtml(t)}</span>`).join("")+'<span class="pill amber">Illustrative assessment</span>';const link=document.getElementById("detailSourceLink");link.href=s.sourceUrl;document.getElementById("detailEvidence").innerHTML=s.evidence.map(e=>`<div class="evidence-item"><strong>${escapeHtml(e[0])}</strong><p>${escapeHtml(e[1])}</p></div>`).join("");document.getElementById("detailOpportunity").innerHTML=`<div class="evidence-item"><strong>${escapeHtml(s.opportunity[0])}</strong><p>${escapeHtml(s.opportunity[1])}</p></div>`;document.getElementById("detailPlanSteps").innerHTML=s.plan.map((p,i)=>`<div class="plan-step"><span class="step-num">${i+1}</span><span>${escapeHtml(p)}</span></div>`).join("");document.getElementById("detailSaveBtn").textContent=s.saved?"★ Saved for review":"☆ Save for review";document.getElementById("detailDismissBtn").textContent=s.status==="dismissed"?"↶ Restore signal":"⊘ Dismiss signal";document.getElementById("detailSaveBtn").onclick=()=>{s.saved=!s.saved;document.getElementById("detailSaveBtn").textContent=s.saved?"★ Saved for review":"☆ Save for review";renderSignals();toast(s.saved?"Saved for review.":"Removed from saved signals.")};document.getElementById("detailDismissBtn").onclick=()=>{s.status=s.status==="dismissed"?"reviewed":"dismissed";document.getElementById("detailDismissBtn").textContent=s.status==="dismissed"?"↶ Restore signal":"⊘ Dismiss signal";renderSignals();toast(s.status==="dismissed"?"Signal dismissed.":"Signal restored.")};document.getElementById("detailOpenSourceBtn").onclick=()=>window.open(s.sourceUrl,"_blank","noopener,noreferrer");document.getElementById("createPlanFromDetail").onclick=()=>openPlanModal("Implement: "+s.title,"Created from signal: "+s.title)}
-document.getElementById("detailOpenSourceBtn").addEventListener("click",()=>{if(selectedSignal){const s=signals.find(x=>x.id===selectedSignal);if(s)window.open(s.sourceUrl,"_blank","noopener,noreferrer")}});
-document.getElementById("opportunityRefresh").addEventListener("click",()=>toast("Opportunity aggregation is demo-only; no signal clustering endpoint is connected."));
-/* Local action plan prototype */
-function openPlanModal(title,description){pendingPlanTitle=title;document.getElementById("modalPlanName").value=title;document.getElementById("modalText").textContent=description+" This plan will be stored only in this browser.";document.getElementById("modalBackdrop").classList.add("show");setTimeout(()=>document.getElementById("modalPlanName").focus(),50)}
-function closeModal(){document.getElementById("modalBackdrop").classList.remove("show")}
-document.getElementById("modalCancel").onclick=closeModal;document.getElementById("modalBackdrop").addEventListener("click",e=>{if(e.target.id==="modalBackdrop")closeModal()});
-document.getElementById("modalConfirm").onclick=()=>{const title=document.getElementById("modalPlanName").value.trim();if(!title){toast("Enter a plan title first.");return}plans.unshift({id:"plan-"+Date.now(),title,priority:"Medium",areas:"Needs component mapping",status:"Proposed",progress:0,updated:"Just now (local)",tasks:["Verify source evidence","Map affected components","Define implementation and validation steps","Review risks and decide next action"]});savePlans();closeModal();renderPlans();renderSignals();toast("Plan saved in this browser.");if(currentPage!=="plans")go("plans")};
-document.getElementById("newPlanBtn").onclick=()=>openPlanModal("New implementation plan","Create a plan");
-document.getElementById("emptyNewPlan").onclick=()=>openPlanModal("New implementation plan","Create a plan");
-document.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>openPlanModal(b.dataset.plan,"Created from opportunity")));
-function renderPlans(){const tbody=document.getElementById("plansTable");tbody.innerHTML="";const filter=document.getElementById("planStatusFilter").value;const list=plans.filter(p=>filter==="all"||p.status===filter);document.getElementById("plansEmpty").style.display=list.length?"none":"block";list.forEach(p=>{const tr=document.createElement("tr");tr.innerHTML=`<td><strong>${escapeHtml(p.title)}</strong><small>${escapeHtml(p.id)}</small></td><td><span class="pill ${p.priority==="High"?"red":"amber"}">${escapeHtml(p.priority)}</span></td><td>${escapeHtml(p.areas)}</td><td><select class="select plan-status" data-id="${escapeHtml(p.id)}">${["Proposed","Under Review","Approved","In Progress","Completed"].map(s=>`<option ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></td><td><div style="display:flex;align-items:center;gap:7px"><div style="height:5px;width:70px;background:#edf0f5;border-radius:9px;overflow:hidden"><div style="height:100%;width:${Math.max(0,Math.min(100,p.progress))}%;background:#16a995"></div></div><span>${p.progress}%</span></div></td><td>${escapeHtml(p.updated)}</td><td><button class="text-btn" data-openplan="${escapeHtml(p.id)}">Details ↗</button></td>`;tbody.appendChild(tr)});tbody.querySelectorAll(".plan-status").forEach(sel=>sel.addEventListener("change",()=>{const p=plans.find(x=>x.id===sel.dataset.id);p.status=sel.value;if(p.status==="Completed")p.progress=100;if(p.status==="In Progress"&&p.progress===0)p.progress=25;p.updated="Just now (local)";savePlans();renderPlans();renderSignals();toast("Plan status updated locally.")}));tbody.querySelectorAll("[data-openplan]").forEach(btn=>btn.addEventListener("click",()=>showPlanDetail(btn.dataset.openplan)));document.getElementById("metricPlans").textContent=plans.filter(p=>p.status!=="Completed").length;document.getElementById("navPlanCount").textContent=plans.length}
-function showPlanDetail(id){const p=plans.find(x=>x.id===id);if(!p)return;const content=`${p.title}\n\nStatus: ${p.status}\nPriority: ${p.priority}\nAffected areas: ${p.areas}\nProgress: ${p.progress}%\n\nTasks:\n${p.tasks.map((t,i)=>`${i+1}. ${t}`).join("\n")}\n\nValidation: Add tests and compare results with a documented baseline.\nRisks: Confirm evidence, compatibility, privacy, and rollback requirements.\n\nThis is a local demo plan; no code or deployment action is performed.`;document.getElementById("modalTitle").textContent="Plan details";document.getElementById("modalText").textContent=content;document.getElementById("modalPlanName").value=p.title;document.getElementById("modalPlanName").disabled=true;document.getElementById("modalConfirm").textContent="Close";document.getElementById("modalConfirm").onclick=()=>{closeModal();document.getElementById("modalPlanName").disabled=false;document.getElementById("modalConfirm").textContent="Save plan";document.getElementById("modalConfirm").onclick=saveModalPlan};document.getElementById("modalCancel").textContent="Close";document.getElementById("modalCancel").onclick=()=>{closeModal();document.getElementById("modalPlanName").disabled=false;document.getElementById("modalCancel").textContent="Cancel";document.getElementById("modalConfirm").textContent="Save plan";document.getElementById("modalConfirm").onclick=saveModalPlan};document.getElementById("modalBackdrop").classList.add("show")}
-function saveModalPlan(){const title=document.getElementById("modalPlanName").value.trim();if(!title){toast("Enter a plan title first.");return}plans.unshift({id:"plan-"+Date.now(),title,priority:"Medium",areas:"Needs component mapping",status:"Proposed",progress:0,updated:"Just now (local)",tasks:["Verify source evidence","Map affected components","Define implementation and validation steps","Review risks and decide next action"]});savePlans();closeModal();document.getElementById("modalPlanName").disabled=false;document.getElementById("modalCancel").textContent="Cancel";document.getElementById("modalConfirm").textContent="Save plan";document.getElementById("modalConfirm").onclick=saveModalPlan;renderPlans();renderSignals();toast("Plan saved in this browser.")}
-document.getElementById("planStatusFilter").addEventListener("change",renderPlans);
-/* Architecture graph fixture */
-const nodes=[
- {id:"anythingllm",label:"AnythingLLM",type:"component",x:365,y:250,desc:"Top-level project node for the illustrative graph.",source:"Project root placeholder"},
- {id:"workspace",label:"Workspace",type:"component",x:200,y:135,desc:"Example workspace concept; verify actual graph schema.",source:"Not connected"},
- {id:"retrieval",label:"Retrieval",type:"component",x:195,y:330,desc:"Example retrieval area used to demonstrate node selection.",source:"Not connected"},
- {id:"providers",label:"Providers",type:"component",x:530,y:145,desc:"Example external provider integration area.",source:"Not connected"},
- {id:"vector",label:"Vector store",type:"component",x:540,y:335,desc:"Example persistence or retrieval concept.",source:"Not connected"},
- {id:"docs",label:"Architecture docs",type:"document",x:365,y:85,desc:"Documentation node placeholder.",source:"Not connected"},
- {id:"package",label:"Dependency set",type:"package",x:655,y:245,desc:"Package node placeholder. No real dependency names are shown.",source:"Not connected"},
- {id:"rag",label:"RAG concept",type:"concept",x:90,y:235,desc:"Architecture concept placeholder.",source:"Not connected"}
-];
-const edges=[["anythingllm","workspace"],["anythingllm","retrieval"],["anythingllm","providers"],["anythingllm","vector"],["anythingllm","docs"],["providers","package"],["retrieval","rag"],["retrieval","vector"],["workspace","docs"]];
-function renderGraph(){const svg=document.getElementById("graphSvg");const q=document.getElementById("graphSearch").value.toLowerCase();const type=document.getElementById("graphFilter").value;const shown=nodes.filter(n=>(type==="all"||n.type===type)&&(!q||n.label.toLowerCase().includes(q)));const ids=new Set(shown.map(n=>n.id));svg.innerHTML=`<defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#e9edf3" stroke-width="1"/></pattern></defs><rect width="760" height="510" fill="url(#grid)"/>`;edges.forEach(e=>{if(!ids.has(e[0])||!ids.has(e[1]))return;const a=nodes.find(n=>n.id===e[0]),b=nodes.find(n=>n.id===e[1]);svg.innerHTML+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#c9d3e1" stroke-width="1.5"/>`});shown.forEach(n=>{const colors={component:["#e3f5f1","#159c8b"],package:["#fff1dc","#c58a2b"],document:["#eeeefe","#6965d9"],concept:["#eaf0fa","#6d88b8"]};const c=colors[n.type];svg.innerHTML+=`<g class="graph-node" data-node="${n.id}" tabindex="0" role="button"><circle cx="${n.x}" cy="${n.y}" r="${n.id==="anythingllm"?35:27}" fill="${c[0]}" stroke="${c[1]}"/><text x="${n.x}" y="${n.y+45}" text-anchor="middle">${escapeHtml(n.label)}</text></g>`});svg.querySelectorAll(".graph-node").forEach(g=>{const fn=()=>selectNode(g.dataset.node);g.addEventListener("click",fn);g.addEventListener("keydown",e=>{if(e.key==="Enter")fn()})})}
-function selectNode(id){const n=nodes.find(x=>x.id===id);if(!n)return;document.getElementById("nodeTitle").textContent=n.label;document.getElementById("nodeDescription").textContent=n.desc;document.getElementById("nodeType").textContent=n.type;document.getElementById("nodeRelations").textContent=edges.filter(e=>e.includes(id)).length+" illustrative relationships";document.getElementById("nodeSource").textContent=n.source;document.getElementById("traceNode").onclick=()=>toast("Path tracing requires a real FalkorDB query. These edges are illustrative only.");}
-document.getElementById("graphSearch").addEventListener("input",renderGraph);document.getElementById("graphFilter").addEventListener("change",renderGraph);document.getElementById("graphReload").onclick=()=>toast("Graph API not connected; showing demo fixture.");document.getElementById("graphFit").onclick=()=>{document.getElementById("graphSearch").value="";document.getElementById("graphFilter").value="all";renderGraph();toast("Demo graph view reset.")};
-/* Source settings are deliberately local-only. */
-function loadSourceSettings(){try{return JSON.parse(localStorage.getItem("techcompass_sources")||"{}")}catch(e){return {}}}
-function renderSources(){const state=loadSourceSettings();document.getElementById("sourceCards").innerHTML=sourceDefs.map(s=>{const enabled=state[s.id]??(s.id==="official"||s.id==="security");return `<div class="source-card"><div class="source-card-top"><div class="source-logo">${s.mark}</div><div><h3>${s.name}</h3><p>${s.desc}</p></div><button class="toggle ${enabled?"on":""}" data-source-toggle="${s.id}" aria-label="Toggle ${s.name}" aria-pressed="${enabled}"></button></div><div class="source-info"><span>Last fetch: ${s.last}</span><span>Latest: ${s.latest}</span></div></div>`}).join("");document.querySelectorAll("[data-source-toggle]").forEach(btn=>btn.onclick=()=>{const st=loadSourceSettings();st[btn.dataset.sourceToggle]=!(st[btn.dataset.sourceToggle]??(btn.dataset.sourceToggle==="official"||btn.dataset.sourceToggle==="security"));localStorage.setItem("techcompass_sources",JSON.stringify(st));renderSources();toast("Source preference changed locally; no fetch was started.")})}
-document.getElementById("saveSources").onclick=()=>{const settings={};document.querySelectorAll("[data-source-toggle]").forEach(b=>settings[b.dataset.sourceToggle]=b.classList.contains("on"));localStorage.setItem("techcompass_sources",JSON.stringify(settings));savePolicy();toast("Source and scan preferences saved in this browser.")};
-document.getElementById("resetSources").onclick=()=>{localStorage.removeItem("techcompass_sources");renderSources();toast("Demo source preferences reset.")};
-function savePolicy(){const policy={frequency:document.getElementById("scanFrequency").value,threshold:document.getElementById("relevanceThreshold").value,duplicates:document.getElementById("duplicateMode").value,topics:document.getElementById("topicFilters").value};try{localStorage.setItem("techcompass_policy",JSON.stringify(policy))}catch(e){}}
-document.getElementById("savePolicy").onclick=()=>{savePolicy();toast("Scan policy preferences saved locally; no scan scheduled.")};
-function loadPolicy(){try{const p=JSON.parse(localStorage.getItem("techcompass_policy")||"{}");if(p.frequency)document.getElementById("scanFrequency").value=p.frequency;if(p.threshold)document.getElementById("relevanceThreshold").value=p.threshold;if(p.duplicates)document.getElementById("duplicateMode").value=p.duplicates;if(p.topics)document.getElementById("topicFilters").value=p.topics}catch(e){}}
-document.getElementById("saveProject").onclick=()=>{const name=document.getElementById("projectName").value.trim()||"AnythingLLM";document.querySelector(".project-name").textContent=name;document.querySelector(".project-icon").textContent=name.slice(0,1).toUpperCase();toast("Project identity updated for this page session. API settings are not persisted.")};
-document.getElementById("testApi").onclick=async()=>{const base=document.getElementById("apiBase").value.trim().replace(/\/+$/,"");if(!base){toast("Enter your FastAPI base URL first.");return}toast("Checking backend readiness…");try{const response=await fetch(base+"/health/ready",{method:"GET"});if(!response.ok)throw new Error("HTTP "+response.status);document.getElementById("connectionLabel").textContent="API reachable";document.getElementById("headerDot").className="dot";document.getElementById("sideDot").className="dot";document.getElementById("sideStatus").textContent="API reachable";document.getElementById("sideStatusText").textContent="Readiness endpoint responded. Signal APIs are still not connected.";toast("Backend readiness endpoint responded. Signal feed remains demo data.")}catch(e){document.getElementById("connectionLabel").textContent="API not connected";document.getElementById("headerDot").className="dot off";toast("Could not reach /health/ready. Check server URL, CORS, and that FastAPI is running.")}};
-document.querySelectorAll("[data-settings]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-settings]").forEach(x=>x.classList.toggle("active",x===b));if(b.dataset.settings==="api")document.getElementById("apiBase").focus();else if(b.dataset.settings==="project")document.getElementById("projectName").focus();else document.querySelector("#settings-privacy")?.scrollIntoView({behavior:"smooth"})}));
-document.getElementById("notificationBtn").title="Demo notifications";
-loadPolicy();renderSignals();renderPlans();renderSources();renderGraph();
-</script>
-</body>
+  </body>
 </html>

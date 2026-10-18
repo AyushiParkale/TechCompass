@@ -1,0 +1,23 @@
+{
+  "id": "techcompass",
+  "name": "TechCompass",
+  "description": "A graph-backed repository intelligence assistant that lets developers explore an analyzed software repository through chat, dependency paths, source evidence, and external technology information.",
+  "business_goal": "Help developers understand a software project's architecture and dependencies, and make external technology updates useful by connecting them to evidence about the project.",
+  "objectives": [
+    {
+      "id": "repository-understanding",
+      "text": "Answer questions about the analyzed repository using graph-backed evidence and show which tools and sources support each answer.",
+      "source": "README.md"
+    },
+    {
+      "id": "contextual-discovery",
+      "text": "Discover current technology and security information from queries derived from the analyzed project's graph context rather than a fixed keyword list.",
+      "source": "User requirement: graph-derived external search"
+    },
+    {
+      "id": "explain-project-impact",
+      "text": "Explain why an external item is relevant separately from what its evidence establishes about the analyzed project's dependencies, imports, or architecture.",
+      "source": "User requirement: separate relevance and project impact"
+    }
+  ]
+}

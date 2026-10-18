@@ -54,6 +54,123 @@ def get_component_dependencies(
     )
 
 
+def trace_component_dependencies(
+    graph: Any,
+    component: str,
+    depth: int = 1,
+) -> dict[str, Any]:
+    """Trace resolved package dependencies declared by a component."""
+    if (
+        isinstance(depth, bool)
+        or not isinstance(depth, int)
+        or not 1 <= depth <= 4
+    ):
+        raise ValueError("depth must be an integer from 1 to 4")
+
+    matches = _rows(
+        graph,
+        """
+        MATCH (c:RepoComponent)
+        WHERE toLower(coalesce(c.name, '')) CONTAINS toLower($component)
+           OR toLower(coalesce(c.path, '')) CONTAINS toLower($component)
+        RETURN c.name AS component,
+               c.path AS manifest_path
+        ORDER BY c.name, c.path
+        LIMIT 20
+        """,
+        {"component": component},
+    )
+    exact_matches = [
+        row for row in matches
+        if (row.get("component") or "").casefold() == component.casefold()
+        or (row.get("manifest_path") or "").casefold() == component.casefold()
+    ]
+    candidates = exact_matches or matches
+    if not candidates:
+        return {
+            "status": "component_not_found",
+            "component": component,
+            "depth": depth,
+            "paths": [],
+            "message": (
+                "This component is not modeled in the graph. Its absence "
+                "does not establish that it has no dependencies."
+            ),
+        }
+    if len(candidates) > 1:
+        return {
+            "status": "ambiguous_component",
+            "component": component,
+            "depth": depth,
+            "matches": candidates,
+            "paths": [],
+            "message": "Specify a more distinctive component name or path.",
+        }
+
+    selected = candidates[0]
+    paths = _rows(
+        graph,
+        """
+        MATCH (source:RepoComponent {path: $manifest_path})
+              -[declared:DEPENDS_ON]->(package:Package)
+              -[:HAS_VERSION]->(version:PackageVersion)
+              <-[resolution:HAS_LOCKFILE_RESOLUTION]-(source)
+        MATCH path=(version)-[:DEPENDS_ON_VERSION*0..3]->
+                   (target:PackageVersion)
+        WHERE length(path) <= $depth - 1
+          AND resolution.selector =
+              package.name + '@' + declared.declared_version
+          AND all(
+              edge IN relationships(path)
+              WHERE edge.lockfile_path = resolution.lockfile_path
+          )
+        RETURN source.name AS source_component,
+               package.name AS direct_package,
+               declared.declared_version AS declared_range,
+               declared.dependency_type AS dependency_type,
+               version.version AS resolved_version,
+               length(path) + 1 AS hops,
+               [source.name] + [n IN nodes(path) | n.name]
+                   AS dependency_path,
+               [n IN nodes(path) | n.version] AS versions,
+               resolution.lockfile_path AS lockfile,
+               resolution.selector AS lockfile_selector,
+               [r IN relationships(path) | {
+                   dependency_selector: r.dependency_selector,
+                   lockfile: r.lockfile_path,
+                   optional: r.optional
+               }] AS dependency_evidence
+        ORDER BY hops DESC, direct_package, target.name
+        LIMIT 100
+        """,
+        {
+            "manifest_path": selected["manifest_path"],
+            "depth": depth,
+        },
+    )
+    if not paths:
+        return {
+            "status": "no_paths",
+            "component": selected["component"],
+            "manifest_path": selected["manifest_path"],
+            "depth": depth,
+            "paths": [],
+            "message": (
+                f"No modeled dependency path starts at "
+                f"{selected['component']} within {depth} hop(s). This may "
+                "mean the dependency is not modeled; it is not proof that "
+                "no real dependency exists."
+            ),
+        }
+    return {
+        "status": "paths_found",
+        "component": selected["component"],
+        "manifest_path": selected["manifest_path"],
+        "depth": depth,
+        "paths": paths,
+    }
+
+
 def find_package_usage(
     graph: Any,
     package: str,
